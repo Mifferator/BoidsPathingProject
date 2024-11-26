@@ -10,6 +10,33 @@ DEST_DIR = "boid_plots"
 def load_data(filename):
     return pd.read_csv(filename)
 
+def plot_graph(plt, graph_file):
+    nodes = {}
+    edges = []
+    
+    with open(graph_file, 'r') as f:
+        lines = f.readlines()
+
+        i = 0
+        while lines[i].strip() != '#':
+            node_id, x, y = lines[i].strip().split()
+            nodes[node_id] = (float(x), float(y))
+            i += 1
+        
+        i += 1
+        
+        while i < len(lines):
+            x1, y1, x2, y2 = map(float, lines[i].strip().split())
+            edges.append(((x1, y1), (x2, y2)))
+            i += 1
+
+    for node_id, (x, y) in nodes.items():
+        plt.scatter(x, y, color='black', alpha=0.2)
+        plt.text(x + 1, y, node_id, color='black', alpha=0.2)
+
+    for (x1, y1), (x2, y2) in edges:
+        plt.plot([x1, x2], [y1, y2], color='black', alpha=0.2)
+
 def plot_boid_path(df, boid_id):
     boid_df = df[df['boid_id'] == boid_id].copy()
 
@@ -20,6 +47,8 @@ def plot_boid_path(df, boid_id):
 
     plt.clf()
     fig, ax = plt.subplots()
+
+    plot_graph(plt, "graph.txt")
 
     for i in range(len(boid_df) - 1):
         x = boid_df['position_x'].iloc[i:i+2]

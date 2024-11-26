@@ -1,4 +1,5 @@
 # Import libraries
+import os
 import pygame
 import sys
 import random
@@ -34,6 +35,8 @@ HEIGHT=60 # m
 
 BOID_COLOR = pygame.Color(0,0,255) #r,g,b
 OBSTACLE_COLOR = pygame.Color(92,1,1) #r,g,b
+
+STATISTICS_DIR = "boid_statistics"
 
 # bool control variables
 flocking = True
@@ -565,8 +568,13 @@ class Flock:
 
     def finalize(self):
         print("Simulation complete!")
+        if not os.path.exists(STATISTICS_DIR):
+            os.makedirs(STATISTICS_DIR)
         df = BoidStatistics.aggregate_statistics(self.collided + self.arrived)
-        df.to_csv("boid_statistics.csv")
+        df.to_csv(os.path.join(STATISTICS_DIR, "boid_statistics.csv"))
+        print(f"Statistics saved to '{STATISTICS_DIR}/boid_statistics.csv'")
+        self.graph.save_graph(os.path.join(STATISTICS_DIR, "graph.txt"))
+        print(f"Graph saved to '{STATISTICS_DIR}/graph.txt'")
         pygame.quit()
         sys.exit()
 

@@ -56,6 +56,16 @@ class Graph:
         for source in self.nodes:
             self._compute_routes_from(source)
 
+    def save_graph(self, filename):
+        with open(filename, 'w') as f:
+            for node in self.nodes:
+                f.write(f"{node.id} {node.coord.x} {node.coord.y}\n")
+            f.write("#\n")
+            for node in self.nodes:
+                for neighbor in node.neighbors:
+                    if node.id < neighbor.id:
+                        f.write(f"{node.coord.x} {node.coord.y} {neighbor.coord.x} {neighbor.coord.y}\n")
+
     def _compute_routes_from(self, source: Node):
         distances = {node: float('inf') for node in self.nodes} 
         previous_nodes = {node: None for node in self.nodes}
