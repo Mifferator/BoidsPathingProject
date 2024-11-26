@@ -1,4 +1,5 @@
 import pandas as pd
+import seaborn as sb
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
@@ -6,6 +7,7 @@ import os
 from tqdm import tqdm
 
 DEST_DIR = "boid_plots"
+SOURCE_DIR = "boid_statistics"
 
 def load_data(filename):
     return pd.read_csv(filename)
@@ -48,7 +50,7 @@ def plot_boid_path(df, boid_id):
     plt.clf()
     fig, ax = plt.subplots()
 
-    plot_graph(plt, "graph.txt")
+    plot_graph(plt, os.path.join(SOURCE_DIR, "graph.txt"))
 
     for i in range(len(boid_df) - 1):
         x = boid_df['position_x'].iloc[i:i+2]
@@ -68,11 +70,32 @@ def plot_boid_path(df, boid_id):
     plt.savefig(os.path.join(DEST_DIR, f"boid_{boid_id}.png"), dpi=300)
     plt.close(fig)
 
+def plot_all_boid_paths(df):
+    boids = df['boid_id'].unique().tolist()
+    for boid in tqdm(boids):
+        plot_boid_path(df, boid)
+
+def plot_heat_map(df):
+    plt.clf()
+    fig, ax = plt.subplots()
+
+    plot_graph(plt, os.path.join(SOURCE_DIR, "graph.txt"))
+
+    x, y = zip(*df[['position_x', 'position_y']].values)
+    ax.hist2d(x, y, bins=450, cmap='inferno')
+    plt.colorbar(label="Boid Density")
+
+    plt.title("Boid Density Heatmap")
+    plt.xlabel("Position X")
+    plt.ylabel("Position Y")
+    plt.savefig(os.path.join(DEST_DIR, "boid_density.png"), dpi=300)
+    plt.close(fig)
+
 if __name__ == "__main__":
-    df = load_data("boid_statistics.csv")
+    df = load_data(os.path.join(SOURCE_DIR, "boid_statistics.csv"))
     boids = df['boid_id'].unique().tolist()
     if not os.path.exists(DEST_DIR):
         os.makedirs(DEST_DIR)
-    for boid in tqdm(boids):
-        plot_boid_path(df, boid)
-        pass
+    
+    #plot_all_boid_paths(df)
+    plot_heat_map(df)
