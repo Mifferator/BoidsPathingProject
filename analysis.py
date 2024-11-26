@@ -91,11 +91,21 @@ def plot_heat_map(df):
     plt.savefig(os.path.join(DEST_DIR, "boid_density.png"), dpi=300)
     plt.close(fig)
 
+def plot_speed_hist(df):
+    plt.clf()
+    df.loc[:, 'speed'] = np.sqrt(df['velocity_x']**2 + df['velocity_y']**2)
+    sb.histplot(df['speed'], color='blue', kde=True, line_kws={'linewidth': 1}, ec=None)
+    plt.title("Boid Speed Histogram")
+    plt.xlabel("Speed (m/s)")
+    plt.ylabel("Frequency")
+    plt.savefig(os.path.join(DEST_DIR, "boid_speed_hist.png"), dpi=300)
+
 if __name__ == "__main__":
     df = load_data(os.path.join(SOURCE_DIR, "boid_statistics.csv"))
     boids = df['boid_id'].unique().tolist()
     if not os.path.exists(DEST_DIR):
         os.makedirs(DEST_DIR)
     
-    #plot_all_boid_paths(df)
+    plot_all_boid_paths(df)
     plot_heat_map(df)
+    plot_speed_hist(df)
