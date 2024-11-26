@@ -4,6 +4,7 @@ import sys
 import random
 import math
 from graph import Node, Graph, generate_graph
+from boid_statistic import BoidStatistics
 
 # ==============================================================================
 # SETTINGS FOR BOIDS     by David Gabriel
@@ -245,8 +246,14 @@ class Obstacle:
 
 # BOID CLASS
 class Boid:
-    def __init__(self, boid_radius, destination: Node, destination_callback, collision_callback, selected=False):
-        print("A New BOID Has Been Created.")
+    def __init__(self, 
+                    boid_radius: float, 
+                    boid_id: int, 
+                    destination: Node, 
+                    destination_callback: callable, 
+                    collision_callback: callable, 
+                    selected=False):
+        self.id = boid_id
         self.selected = selected
         self.heading = get_random_float(-PI, PI)
         self.speed = get_random_float(MIN_SPEED, MAX_SPEED)
@@ -267,6 +274,7 @@ class Boid:
         self.color =  pygame.Color(0,0,0) if selected and debug else BOID_COLOR
         self.destination_callback = destination_callback
         self.collision_callback = collision_callback
+        self.statistics = BoidStatistics(self)
 
 
     def set_target(self, target):
@@ -287,7 +295,7 @@ class Boid:
             separation = self.pos - neighbor.pos
             distance = separation.get_magnitude()
             if distance < COLLISION_THRESHOLD:
-                self.collision_callback(self, neighbor)
+                self.collide(neighbor)
             separation.set_to_unit_vect()
             separation /= (distance ** 2) if distance != 0 else 1
             sum_vect += separation
@@ -360,7 +368,7 @@ class Boid:
         min_dist = 0
         for obstacle in obstacles:
             if self.pos.get_distance_to(obstacle.pos) - obstacle.radius < COLLISION_THRESHOLD:
-                self.collision_callback(self)
+                self.collide()
             # Check for intersection with the obstacle's circle (detects if the line intersects the obstacle's radius)
             if line_circle_intersection(self.pos, end_pos, obstacle.pos, obstacle.radius + self.radius):
                 dist = self.pos.get_distance_to(obstacle.pos)
@@ -397,6 +405,12 @@ class Boid:
         else:
             target.scale_to(self.max_speed)
         return self.get_steering_force(target)
+
+    def collide(self, other=None):
+        if other is not None:
+            self.collision_callback(self, other)
+        else:
+            self.collision_callback(self)
 
     def update(self, dt):
         self.acc.set(0, 0)
@@ -438,6 +452,7 @@ class Boid:
         # Wrap around screen edges or clamp....
         self.pos.set(self.pos.x % WIDTH, self.pos.y % HEIGHT)
         # self.pos.set(max(0, min(WIDTH, self.pos.x)), max(0, min(HEIGHT, self.pos.y)))
+        self.statistics.update(dt)
 
     def draw_vector(self, v, color):
         pygame.draw.line(screen, color, self.pos, v)
@@ -482,6 +497,8 @@ class Flock:
         print("A New FLOCK Has Been Created.")
         self.selected = [0]
         self.boids = []
+        self.collided = []
+        self.arrived = []
         self.num_boids = num_boids
         self.boid_cntr_pos = Vect2D(0, 0)
         self.graph = graph
@@ -491,11 +508,13 @@ class Flock:
         self.populate()
 
     def destination_callback(self, boid):
+        self.arrived.append(boid)
         self.boids.remove(boid)
         self.completed_routes += 1
 
     def collision_callback(self, boid1, boid2=None):
         self.collisions += 1
+        self.collided.append(boid1)
         self.boids.remove(boid1)
         if boid2 is not None:
             self.boids.remove(boid2)
@@ -505,7 +524,7 @@ class Flock:
             selected = i in self.selected
             
             destination = random.choice(self.graph.nodes)
-            boid = Boid(0.25, destination, self.destination_callback, self.collision_callback, selected)
+            boid = Boid(0.25, int(i), destination, self.destination_callback, self.collision_callback, selected)
             if selected: print(boid.pos)
             nearest_node = self.graph.get_nearest_node(boid.pos.to_vector2())
             boid.set_target(nearest_node)
@@ -539,6 +558,18 @@ class Flock:
             camera_offset -= self.boid_cntr_pos
         else:
             camera_offset.set(0, 0)
+
+        if len(self.boids) < 1:
+            self.finalize()
+            return
+
+    def finalize(self):
+        print("Simulation complete!")
+        df = BoidStatistics.aggregate_statistics(self.collided + self.arrived)
+        df.to_csv("boid_statistics.csv")
+        pygame.quit()
+        sys.exit()
+
 
     def draw(self):
         for boid in self.boids:
