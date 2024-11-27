@@ -26,7 +26,8 @@ MAX_SPEED = 10.0 # m/s
 MIN_VIEW_DIST = 1 # m
 VIEW_DIST = 10 # m
 VIEW_ANGLE = 110 # degrees
-NODE_THRESHOLD = 1.0 # m
+DESTINATION_THRESHOLD = 0.5 # m
+PASSTHROUGH_MULITPLIER = 4
 COLLISION_THRESHOLD = 0.2 # m
 SPAWN_RADIUS = 2.0 # m
 
@@ -564,7 +565,8 @@ class Boid:
             self.acc += separation_force + alignment_force + cohesion_force
 
         if(targeting):
-            if Vect2D.from_vector2(self.target.coord).get_distance_to(self.pos) < NODE_THRESHOLD:
+            threshold = DESTINATION_THRESHOLD if self.target.coord == self.destination.coord else DESTINATION_THRESHOLD * PASSTHROUGH_MULITPLIER
+            if Vect2D.from_vector2(self.target.coord).get_distance_to(self.pos) < threshold:
                 if self.target.id == self.destination.id:
                     self.destination_callback(self)
                     return
