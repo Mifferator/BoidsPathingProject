@@ -15,12 +15,12 @@ from boid_statistic import BoidStatistics
 PI = math.pi
 
 AVOID_PREDICTIVENESS = 1.0
-AVOID_WEIGHT = 0.8
-SEPARATION_WEIGHT = 0.75
+AVOID_WEIGHT = 0.9
+SEPARATION_WEIGHT = 0.8
 ALIGNMENT_WEIGHT = 0.0
 COHESION_WEIGHT = 0.0
-TARGET_WEIGHT = 0.75
-STEER_FORCE = 0.15
+TARGET_WEIGHT = 0.9
+STEER_FORCE = 0.2
 MIN_SPEED = 0.1 # m/s
 MAX_SPEED = 10.0 # m/s
 MIN_VIEW_DIST = 1 # m
@@ -51,7 +51,7 @@ showSeparationVect = True
 showAlignmentVect = True
 showCohesionVect = True
 showTargetVect = True
-showHeadings = False
+showHeadings = True
 showObstacles = True
 showGraph = True
 
@@ -185,6 +185,9 @@ class Vect2D:
     
     def get_draw_format(self):
         return (int(self.x*SCALE), int(self.y*SCALE))
+    
+    def cross(self, v):
+        return self.x * v.y - self.y * v.x
 
     # Operator Overloading
     def __add__(self, v):
@@ -235,8 +238,20 @@ class Vect2D:
     def __repr__(self):
         return f"Vect2D({self.x}, {self.y})"
 
-# OBSTACLE CLASS
+# OBSTACLE CLASSES
 class Obstacle:
+    def __init__(self, vertices):
+        print("A New OBSTACLE Has Been Created.")
+        self.vertices = vertices
+        self.color = OBSTACLE_COLOR
+    def edges(self):
+        return [(self.vertices[i], self.vertices[(i+1) % len(self.vertices)]) for i in range(len(self.vertices))]
+
+    def draw(self):
+        points = [(v + camera_offset).get_draw_format() for v in self.vertices]
+        pygame.draw.polygon(screen, self.color, points)
+
+class Circular_Obstacle:
     def __init__(self, radius, pos):
         print("A New OBSTACLE Has Been Created.")
         self.pos = pos
@@ -308,14 +323,16 @@ class Boid:
     def get_alignment_vect(self):
         sum_vect = Vect2D(0, 0)
         for neighbor in self.neighbors:
-            sum_vect += neighbor.vel
+            if neighbor.target == self.target:
+                sum_vect += neighbor.vel
         sum_vect.scale_to(self.max_speed)
         return self.get_steering_force(sum_vect)
 
     def get_cohesion_vect(self):
         sum_vect = Vect2D(0, 0)
         for neighbor in self.neighbors:
-            sum_vect += neighbor.pos
+            if neighbor.target == self.target:
+                sum_vect += neighbor.pos
         sum_vect = (sum_vect / len(self.neighbors)) - self.pos
         sum_vect.scale_to(self.max_speed)
         return self.get_steering_force(sum_vect)
@@ -362,7 +379,7 @@ class Boid:
         # If no intersection, return a zero vector
         return Vect2D(0, 0)
     
-    def get_avoid_obstacle_vect(self):
+    def get_avoid_circular_obstacle_vect(self):
         # Get the end position of the probe
         end_pos = self.get_probe_end_pos()
 
@@ -398,6 +415,111 @@ class Boid:
         # If no obstacles, return zero vector
         return Vect2D(0, 0)
     
+    def get_avoid_polygon_obstacle_vect(self):
+        # Get the end position of the probe
+        end_pos = self.get_probe_end_pos()
+
+        # Loop through the all obstacles edges to find the closest one
+        closest_obstacle = None
+        intersection_point = None
+        intersection_edge = None
+        min_dist = 0
+        for obstacle in obstacles:
+            # Check for intersection with the obstacle's polygon
+            for edge in obstacle.edges():
+                p0, p1 = edge
+                intersection = get_segment_intersection(self.pos, end_pos, p0, p1)
+                if intersection:
+                    dist = self.pos.get_distance_to(intersection)
+                    if min_dist == 0 or dist < min_dist:
+                        min_dist = dist
+                        closest_obstacle = obstacle
+                        intersection_point = intersection
+                        intersection_edge = edge
+
+        # If a closest obstacle is found
+        if closest_obstacle is not None:
+            # Use 90deg away from intersection as vector
+            p0, p1 = intersection_edge
+            edge_vector = p1 - p0
+            perpendicular_vector = Vect2D(-edge_vector.y, edge_vector.x)  # 90 degrees CC
+            # fix depending on what side Boid is on
+            if (intersection_point - self.pos).cross(edge_vector) < 0:
+                perpendicular_vector = perpendicular_vector * -1 
+
+            perpendicular_vector.scale_to(self.max_speed)  # Scale to maximum velocity
+
+            # Return the steering force to avoid the obstacle
+            return self.get_steering_force(perpendicular_vector)
+
+        # If no obstacles, return zero vector
+        return Vect2D(0, 0)
+    
+    def get_avoid_obstacle_vect(self):
+        # Get the end position of the probe
+        end_pos = self.get_probe_end_pos()
+
+        # Initialize variables for the closest obstacle and minimum distance
+        closest_obstacle = None
+        closest_point = None
+        intersection_edge = None
+        min_dist = float('inf')  # Start with a very large distance value
+
+        # Loop through all obstacles (both circular and polygonal)
+        for obstacle in obstacles:
+            # --- Check Circular Obstacles ---
+            if isinstance(obstacle, Circular_Obstacle):
+                # Check for intersection with the obstacle's circle (detects if the line intersects the obstacle's radius)
+                if self.pos.get_distance_to(obstacle.pos) - obstacle.radius < COLLISION_THRESHOLD:
+                    self.collision_callback(self)
+                if line_circle_intersection(self.pos, end_pos, obstacle.pos, obstacle.radius + self.radius):
+                    dist = self.pos.get_distance_to(obstacle.pos)
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest_obstacle = obstacle
+
+            # --- Check for Polygonal Obstacles ---
+            elif isinstance(obstacle, Obstacle):
+                for edge in obstacle.edges():
+                    p0, p1 = edge
+                    intersection = get_segment_intersection(self.pos, end_pos, p0, p1)
+                    if intersection:
+                        dist = self.pos.get_distance_to(intersection)
+                        if dist < min_dist:
+                            min_dist = dist
+                            closest_obstacle = obstacle
+                            closest_point = intersection
+                            intersection_edge = edge
+
+        # If a polygonal obstacle was found and has an intersection
+        if closest_obstacle is not None:
+            if isinstance(closest_obstacle, Circular_Obstacle):
+                length = self.pos.get_distance_to(end_pos)
+                dot = ((closest_obstacle.pos.x - self.pos.x) * (end_pos.x - self.pos.x) + 
+                    (closest_obstacle.pos.y - self.pos.y) * (end_pos.y - self.pos.y)) / (length ** 2)
+                closest_point = Vect2D(self.pos.x + dot * (end_pos.x - self.pos.x), 
+                    self.pos.y + dot * (end_pos.y - self.pos.y))
+
+                # Get the desired vector by subtracting the obstacle's position from the closest point
+                desired_vec = closest_point - closest_obstacle.pos
+                desired_vec.scale_to(self.max_speed)  # Scale to maximum velocity
+
+                # Return the steering force to avoid the obstacle
+                return self.get_steering_force(desired_vec)
+            
+            # Use 90 degrees away from the intersection as the avoidance vector for polygonal obstacles
+            p0, p1 = intersection_edge
+            edge_vector = p1 - p0
+            perpendicular_vector = Vect2D(-edge_vector.y, edge_vector.x)  # Perpendicular vector (90 degrees CC)
+            if (closest_point - self.pos).cross(edge_vector) < 0:
+                perpendicular_vector = perpendicular_vector * -1
+
+            perpendicular_vector.scale_to(self.max_speed)
+            return self.get_steering_force(perpendicular_vector)
+
+        # If no obstacles were encountered, return a zero vector (no avoidance needed)
+        return Vect2D(0, 0)
+
     def get_target_vect(self):
         target = Vect2D.from_vector2(self.target.coord) - self.pos
         dist = target.get_magnitude()
@@ -488,7 +610,7 @@ class Boid:
                     pygame.draw.line(screen, pygame.Color("#90e0ef"), offset_pos.get_draw_format(), v.get_draw_format())
 
         # headings
-        if debug and showHeadings:
+        if showHeadings:
             v = self.vel/2 + offset_pos
             pygame.draw.line(screen, self.color, offset_pos.get_draw_format(), v.get_draw_format())
         # boid
@@ -597,7 +719,8 @@ graph = generate_graph()
 
 flock = Flock(num_boids=100, graph=graph)
 obstacles = []
-obstacles.append(Obstacle(1, Vect2D(WIDTH / 2, HEIGHT / 2)))
+obstacles.append(Circular_Obstacle(1, Vect2D(WIDTH / 2, HEIGHT / 2)))
+obstacles.append(Obstacle([Vect2D(32,39),  Vect2D(30,42), Vect2D(30,42), Vect2D(35,40),]))
 
 # Colors
 WHITE = (255, 255, 255)
