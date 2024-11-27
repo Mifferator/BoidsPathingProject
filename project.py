@@ -28,6 +28,7 @@ VIEW_DIST = 10 # m
 VIEW_ANGLE = 110 # degrees
 NODE_THRESHOLD = 1.0 # m
 COLLISION_THRESHOLD = 0.2 # m
+SPAWN_RADIUS = 2.0 # m
 
 SCALE = 10 # pixels / m
 WIDTH=100 # m
@@ -128,6 +129,13 @@ def line_point_intersection(lp0, lp1, p):
     buffer = 0.1  # tolerance for floating-point errors
     return (d0 + d1 >= length - buffer) and (d0 + d1 <= length + buffer)
 
+# sample a point at random in a given radius around a given coordinate
+def sample_point_in_circle(center: 'Vect2D', radius: float) -> "Vect2D":
+    angle = get_random_float(0, 2 * PI)
+    rad = get_random_float(0, radius)
+    x = center.x + math.sin(angle) * rad
+    y = center.y + math.cos(angle) * rad
+    return Vect2D(x, y)
 
 # ==============================================================================
 # BOID CLASSES     by David Gabriel
@@ -264,18 +272,19 @@ class Circular_Obstacle:
 
 # BOID CLASS
 class Boid:
-    def __init__(self, 
-                    boid_radius: float, 
+    def __init__(self,  
                     boid_id: int, 
                     destination: Node, 
-                    destination_callback: callable, 
-                    collision_callback: callable, 
+                    destination_callback: callable = None, 
+                    collision_callback: callable = None,
+                    pos = Vect2D(get_random_int(0, 100), get_random_int(0, 60)),
+                    boid_radius: float = 0.25,
                     selected=False):
         self.id = boid_id
         self.selected = selected
         self.heading = get_random_float(-PI, PI)
         self.speed = get_random_float(MIN_SPEED, MAX_SPEED)
-        self.pos = Vect2D(get_random_int(0, 100), get_random_int(0, 60))
+        self.pos = pos
         self.vel = Vect2D(0, 0)
         self.vel.set_from_angle(self.speed, self.heading)
         self.acc = Vect2D(0, 0)
@@ -313,7 +322,7 @@ class Boid:
             separation = self.pos - neighbor.pos
             distance = separation.get_magnitude()
             if distance < COLLISION_THRESHOLD:
-                self.collide(neighbor)
+                self.handle_collision(neighbor)
             separation.set_to_unit_vect()
             separation /= (distance ** 2) if distance != 0 else 1
             sum_vect += separation
@@ -388,7 +397,7 @@ class Boid:
         min_dist = 0
         for obstacle in obstacles:
             if self.pos.get_distance_to(obstacle.pos) - obstacle.radius < COLLISION_THRESHOLD:
-                self.collide()
+                self.handle_collision()
             # Check for intersection with the obstacle's circle (detects if the line intersects the obstacle's radius)
             if line_circle_intersection(self.pos, end_pos, obstacle.pos, obstacle.radius + self.radius):
                 dist = self.pos.get_distance_to(obstacle.pos)
@@ -531,7 +540,7 @@ class Boid:
             target.scale_to(self.max_speed)
         return self.get_steering_force(target)
 
-    def collide(self, other=None):
+    def handle_collision(self, other=None):
         if other is not None:
             self.collision_callback(self, other)
         else:
@@ -633,24 +642,37 @@ class Flock:
         self.populate()
 
     def destination_callback(self, boid):
-        self.arrived.append(boid)
-        self.boids.remove(boid)
+        if boid not in self.arrived:
+            self.arrived.append(boid)
+        if boid in self.boids:
+            self.boids.remove(boid)
         self.completed_routes += 1
 
     def collision_callback(self, boid1, boid2=None):
         self.collisions += 1
-        self.collided.append(boid1)
-        self.boids.remove(boid1)
-        if boid2 is not None:
+        if boid1 not in self.collided:
+            self.collided.append(boid1)
+        if boid1 in self.boids:
+            self.boids.remove(boid1)
+        if boid2 is not None and boid2 in self.boids:
             self.boids.remove(boid2)
 
     def populate(self):
         for i in range(self.num_boids):
-            selected = i in self.selected
+            #selected = i in self.selected
+            start = random.choice(self.graph.nodes)
+            possible_dests = self.graph.nodes.copy()
+            possible_dests.remove(start)
+            destination = random.choice(possible_dests)
             
-            destination = random.choice(self.graph.nodes)
-            boid = Boid(0.25, int(i), destination, self.destination_callback, self.collision_callback, selected)
-            if selected: print(boid.pos)
+            pos = sample_point_in_circle(Vect2D.from_vector2(start.coord), SPAWN_RADIUS)
+
+            boid = Boid(boid_id = int(i), 
+                        destination = destination, 
+                        destination_callback = self.destination_callback, 
+                        collision_callback = self.collision_callback,
+                        pos = pos)
+
             nearest_node = self.graph.get_nearest_node(boid.pos.to_vector2())
             boid.set_target(nearest_node)
             self.boids.append(boid)
