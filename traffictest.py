@@ -1,17 +1,17 @@
-# Import libraries
+# project.py
+
 import os
 import pygame
 import sys
 import random
 import math
-from graphtest import Node, Graph, generate_graph
-from boid_statistic import BoidStatistics
+from graph import Node, Graph, generate_graph
+from boid_statistics import BoidStatistics
 
 # ==============================================================================
-# SETTINGS FOR BOIDS     by David Gabriel
+# SETTINGS FOR BOIDS
 # ==============================================================================
 # Set global variables
-# constants
 PI = math.pi
 
 AVOID_PREDICTIVENESS = 1.0
@@ -57,7 +57,7 @@ showGraph = True
 
 
 # ==============================================================================
-# HELPER FUNCTIONS    by David Gabriel
+# HELPER FUNCTIONS
 # ==============================================================================
 # Random functions
 def get_random_int(min_val, max_val):
@@ -133,7 +133,7 @@ def line_point_intersection(lp0, lp1, p):
 
 
 # ==============================================================================
-# BOID CLASSES     by David Gabriel
+# BOID CLASSES
 # ==============================================================================
 # VECT2D CLASS
 class Vect2D:
@@ -219,7 +219,7 @@ class Vect2D:
         self.y -= v.y
         return self
 
-    def __imult__(self, scalar):
+    def __imul__(self, scalar):
         self.x *= scalar
         self.y *= scalar
         return self
@@ -245,7 +245,6 @@ class Vect2D:
 # OBSTACLE CLASSES
 class Obstacle:
     def __init__(self, vertices):
-        print("A New OBSTACLE Has Been Created.")
         self.vertices = vertices
         self.color = OBSTACLE_COLOR
 
@@ -259,7 +258,6 @@ class Obstacle:
 
 class Circular_Obstacle:
     def __init__(self, radius, pos):
-        print("A New OBSTACLE Has Been Created.")
         self.pos = pos
         self.radius = radius
         self.color = OBSTACLE_COLOR
@@ -271,13 +269,8 @@ class Circular_Obstacle:
 
 # BOID CLASS
 class Boid:
-    def __init__(self,
-                 boid_radius: float,
-                 boid_id: int,
-                 destination: Node,
-                 destination_callback: callable,
-                 collision_callback: callable,
-                 selected=False):
+    def __init__(self, boid_radius: float, boid_id: int, destination: Node, graph: Graph,
+                 destination_callback: callable, collision_callback: callable, selected=False):
         self.id = boid_id
         self.selected = selected
         self.heading = get_random_float(-PI, PI)
@@ -300,9 +293,17 @@ class Boid:
         self.destination_callback = destination_callback
         self.collision_callback = collision_callback
         self.statistics = BoidStatistics(self)
+#### edit by chengpeng
+        self.current_node = None  
+        self.on_node = False  
+        self.graph = graph 
+#### end
 
     def set_target(self, target):
         self.target = target
+
+    def is_on_node(self, node):
+        return Vect2D.from_vector2(node.coord).get_distance_to(self.pos) < NODE_THRESHOLD
 
     def get_steering_force(self, steer):
         # steering force = desired velocity - current velocity
@@ -383,82 +384,6 @@ class Boid:
             return self.get_steering_force(desired_vel)
 
         # If no intersection, return a zero vector
-        return Vect2D(0, 0)
-
-    def get_avoid_circular_obstacle_vect(self):
-        # Get the end position of the probe
-        end_pos = self.get_probe_end_pos()
-
-        # Loop through the obstacles to find the closest one
-        closest_obstacle = None
-        min_dist = 0
-        for obstacle in obstacles:
-            if self.pos.get_distance_to(obstacle.pos) - obstacle.radius < COLLISION_THRESHOLD:
-                self.collide()
-            # Check for intersection with the obstacle's circle (detects if the line intersects the obstacle's radius)
-            if line_circle_intersection(self.pos, end_pos, obstacle.pos, obstacle.radius + self.radius):
-                dist = self.pos.get_distance_to(obstacle.pos)
-                if min_dist == 0 or dist < min_dist:
-                    min_dist = dist
-                    closest_obstacle = obstacle
-
-        # If a closest obstacle is found
-        if closest_obstacle is not None:
-            # Get the closest point on the line between `self.pos` and `end_pos` relative to the obstacle
-            length = self.pos.get_distance_to(end_pos)
-            dot = ((closest_obstacle.pos.x - self.pos.x) * (end_pos.x - self.pos.x) +
-                   (closest_obstacle.pos.y - self.pos.y) * (end_pos.y - self.pos.y)) / (length ** 2)
-            closest_point = Vect2D(self.pos.x + dot * (end_pos.x - self.pos.x),
-                                   self.pos.y + dot * (end_pos.y - self.pos.y))
-
-            # Get the desired vector by subtracting the obstacle's position from the closest point
-            desired_vec = closest_point - closest_obstacle.pos
-            desired_vec.scale_to(self.max_speed)  # Scale to maximum velocity
-
-            # Return the steering force to avoid the obstacle
-            return self.get_steering_force(desired_vec)
-
-        # If no obstacles, return zero vector
-        return Vect2D(0, 0)
-
-    def get_avoid_polygon_obstacle_vect(self):
-        # Get the end position of the probe
-        end_pos = self.get_probe_end_pos()
-
-        # Loop through the all obstacles edges to find the closest one
-        closest_obstacle = None
-        intersection_point = None
-        intersection_edge = None
-        min_dist = 0
-        for obstacle in obstacles:
-            # Check for intersection with the obstacle's polygon
-            for edge in obstacle.edges():
-                p0, p1 = edge
-                intersection = get_segment_intersection(self.pos, end_pos, p0, p1)
-                if intersection:
-                    dist = self.pos.get_distance_to(intersection)
-                    if min_dist == 0 or dist < min_dist:
-                        min_dist = dist
-                        closest_obstacle = obstacle
-                        intersection_point = intersection
-                        intersection_edge = edge
-
-        # If a closest obstacle is found
-        if closest_obstacle is not None:
-            # Use 90deg away from intersection as vector
-            p0, p1 = intersection_edge
-            edge_vector = p1 - p0
-            perpendicular_vector = Vect2D(-edge_vector.y, edge_vector.x)  # 90 degrees CC
-            # fix depending on what side Boid is on
-            if (intersection_point - self.pos).cross(edge_vector) < 0:
-                perpendicular_vector = perpendicular_vector * -1
-
-            perpendicular_vector.scale_to(self.max_speed)  # Scale to maximum velocity
-
-            # Return the steering force to avoid the obstacle
-            return self.get_steering_force(perpendicular_vector)
-
-        # If no obstacles, return zero vector
         return Vect2D(0, 0)
 
     def get_avoid_obstacle_vect(self):
@@ -560,12 +485,7 @@ class Boid:
 
             self.acc += separation_force + alignment_force + cohesion_force
 
-        if (targeting):
-            if Vect2D.from_vector2(self.target.coord).get_distance_to(self.pos) < NODE_THRESHOLD:
-                if self.target.id == self.destination.id:
-                    self.destination_callback(self)
-                    return
-                self.target = self.target.get_next_node(self.destination.id)
+        if targeting:
             target_force = self.get_target_vect() * TARGET_WEIGHT
             self.acc += target_force
 
@@ -582,11 +502,48 @@ class Boid:
         self.pos += self.vel * dt
         # Wrap around screen edges or clamp....
         self.pos.set(self.pos.x % WIDTH, self.pos.y % HEIGHT)
-        # self.pos.set(max(0, min(WIDTH, self.pos.x)), max(0, min(HEIGHT, self.pos.y)))
         self.statistics.update(dt)
 
-    def draw_vector(self, v, color):
-        pygame.draw.line(screen, color, self.pos, v)
+#### edit by chengpeng------------- 
+        # check whether boid left node
+        if self.on_node and not self.is_on_node(self.current_node):
+            
+            self.graph.boids_on_nodes[self.current_node] -= 1
+            # update traffic weight
+            boid_count = self.graph.boids_on_nodes[self.current_node]
+            for neighbor in self.current_node.neighbors:
+                self.current_node.update_traffic(neighbor, boid_count)
+            self.on_node = False
+
+            # recomput path
+            path = self.graph.compute_shortest_path(self.current_node, self.destination)
+            if len(path) > 1:
+                self.target = path[1]
+            else:
+                self.target = self.destination
+
+        # check whether boid arrive node
+        if not self.on_node and self.is_on_node(self.target):
+            # Boid arrive node
+            self.graph.boids_on_nodes[self.target] += 1
+            # update traffic weight
+            boid_count = self.graph.boids_on_nodes[self.target]
+            for neighbor in self.target.neighbors:
+                self.target.update_traffic(neighbor, boid_count)
+            self.current_node = self.target
+            self.on_node = True
+
+            if self.target.id == self.destination.id:
+                self.destination_callback(self)
+                return
+            else:
+                # compute new path 
+                path = self.graph.compute_shortest_path(self.target, self.destination)
+                if len(path) > 1:
+                    self.target = path[1]
+                else:
+                    self.target = self.destination
+#### end------------- 
 
     def draw(self):
         offset_pos = self.pos + camera_offset
@@ -628,7 +585,6 @@ class Boid:
 # FLOCK CLASS
 class Flock:
     def __init__(self, num_boids: int, graph: Graph):
-        print("A New FLOCK Has Been Created.")
         self.selected = [0]
         self.boids = []
         self.collided = []
@@ -658,10 +614,22 @@ class Flock:
             selected = i in self.selected
 
             destination = random.choice(self.graph.nodes)
-            boid = Boid(0.25, int(i), destination, self.destination_callback, self.collision_callback, selected)
-            if selected: print(boid.pos)
+            boid = Boid(0.25, int(i), destination, self.graph, self.destination_callback, self.collision_callback, selected)
             nearest_node = self.graph.get_nearest_node(boid.pos.to_vector2())
             boid.set_target(nearest_node)
+#### edit by chengpeng
+            if boid.is_on_node(nearest_node):
+                boid.current_node = nearest_node
+                boid.on_node = True
+                self.graph.boids_on_nodes[nearest_node] += 1
+                ##### update weight
+                boid_count = self.graph.boids_on_nodes[nearest_node]
+                for neighbor in nearest_node.neighbors:
+                    nearest_node.update_traffic(neighbor, boid_count)
+            else:
+                boid.current_node = None
+                boid.on_node = False
+#### end
             self.boids.append(boid)
 
     def update(self, dt):
@@ -683,11 +651,11 @@ class Flock:
             boid.update(dt)
             self.boid_cntr_pos += boid.pos
 
-        # caclualte flock center and camera offset
-        self.boid_cntr_pos /= self.num_boids
+        # calculate flock center and camera offset
+        self.boid_cntr_pos /= len(self.boids) if len(self.boids) > 0 else 1
         camera_offset = Vect2D(screen.get_width() / (2 * SCALE), screen.get_height() / (2 * SCALE))
         if debug and follow:
-            camera_offset -= self.boids[self.selected[0].pos]
+            camera_offset -= self.boids[self.selected[0]].pos
         elif follow:
             camera_offset -= self.boid_cntr_pos
         else:
@@ -715,7 +683,7 @@ class Flock:
 
 
 # ==============================================================================
-# BOID SIMULATION     by David Gabriel
+# BOID SIMULATION
 # ==============================================================================
 # SETUP GLOBAL VARIABLES
 pygame.init()
@@ -729,7 +697,7 @@ graph = generate_graph()
 flock = Flock(num_boids=100, graph=graph)
 obstacles = []
 obstacles.append(Circular_Obstacle(1, Vect2D(WIDTH / 2, HEIGHT / 2)))
-obstacles.append(Obstacle([Vect2D(32, 39), Vect2D(30, 42), Vect2D(30, 42), Vect2D(35, 40), ]))
+obstacles.append(Obstacle([Vect2D(32, 39), Vect2D(30, 42), Vect2D(35, 40)]))
 
 # Colors
 WHITE = (255, 255, 255)
