@@ -284,6 +284,7 @@ class Boid:
         self.maxSteerForce = STEER_FORCE * MAX_SPEED
         self.destination = destination
         self.target = None
+        self.previous_target = None
         self.view_distance = VIEW_DIST
         self.prop_view_distance = max(MIN_VIEW_DIST, VIEW_DIST * (self.speed / MAX_SPEED))
         self.view_angle = math.radians(VIEW_ANGLE)

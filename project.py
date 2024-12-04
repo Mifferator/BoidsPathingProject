@@ -284,6 +284,7 @@ class Boid:
         self.maxSteerForce = STEER_FORCE*MAX_SPEED
         self.destination = destination
         self.target = None
+        self.previous_target = None
         self.view_distance = VIEW_DIST
         self.prop_view_distance = max(MIN_VIEW_DIST, VIEW_DIST * (self.speed / MAX_SPEED))
         self.view_angle = math.radians(VIEW_ANGLE)
@@ -537,6 +538,48 @@ class Boid:
         else:
             self.collision_callback(self)
 
+    # def update(self, dt):
+    #     self.acc.set(0, 0)
+    #
+    #     # Avoidance force (walls, obstacles, etc.)
+    #     if avoiding:
+    #         avoid_bounds_force = self.get_avoid_bounds_vect() * AVOID_WEIGHT
+    #         avoid_obstacle_force = self.get_avoid_obstacle_vect() * AVOID_WEIGHT
+    #         self.acc += avoid_bounds_force + avoid_obstacle_force
+    #
+    #     # Steering forces (separation, alignment, cohesion)
+    #     if len(self.neighbors) > 0 and flocking:
+    #         separation_force = self.get_separation_vect() * SEPARATION_WEIGHT
+    #         alignment_force = self.get_alignment_vect() * ALIGNMENT_WEIGHT
+    #         cohesion_force = self.get_cohesion_vect() * COHESION_WEIGHT
+    #
+    #         self.acc += separation_force + alignment_force + cohesion_force
+    #
+    #     if(targeting):
+    #         if Vect2D.from_vector2(self.target.coord).get_distance_to(self.pos) < NODE_THRESHOLD:
+    #             if self.target.id == self.destination.id:
+    #                 self.destination_callback(self)
+    #                 return
+    #             self.target = self.target.get_next_node(self.destination.id)
+    #         target_force = self.get_target_vect() * TARGET_WEIGHT
+    #         self.acc += target_force
+    #
+    #     # Update velocity and position
+    #     self.vel += self.acc * dt
+    #     self.speed = self.vel.get_magnitude()
+    #     if self.speed != 0:
+    #         self.heading = math.atan2(self.vel.y, self.vel.x)
+    #     if self.speed < self.min_speed:
+    #         self.vel.scale_to(self.min_speed)
+    #         self.speed = self.min_speed
+    #     self.prop_view_distance = max(MIN_VIEW_DIST, self.view_distance * (self.speed / self.max_speed))
+    #
+    #     self.pos += self.vel * dt
+    #     # Wrap around screen edges or clamp....
+    #     self.pos.set(self.pos.x % WIDTH, self.pos.y % HEIGHT)
+    #     # self.pos.set(max(0, min(WIDTH, self.pos.x)), max(0, min(HEIGHT, self.pos.y)))
+    #     self.statistics.update(dt)
+
     def update(self, dt):
         self.acc.set(0, 0)
 
@@ -554,12 +597,27 @@ class Boid:
 
             self.acc += separation_force + alignment_force + cohesion_force
 
-        if(targeting):
+        if targeting:
+            # Check if the robot is close to its target node
             if Vect2D.from_vector2(self.target.coord).get_distance_to(self.pos) < NODE_THRESHOLD:
+                # Decrease traffic on the path just traveled
+                if self.previous_target:
+                    self.previous_target.update_traffic(self.target, -1)
+
+                # If the robot has reached its destination
                 if self.target.id == self.destination.id:
                     self.destination_callback(self)
                     return
+
+                # Update the target to the next node
+                self.previous_target = self.target
                 self.target = self.target.get_next_node(self.destination.id)
+
+                # Increase traffic on the new path
+                if self.target:
+                    self.previous_target.update_traffic(self.target, 1)
+
+            # Apply targeting force
             target_force = self.get_target_vect() * TARGET_WEIGHT
             self.acc += target_force
 
