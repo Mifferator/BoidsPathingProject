@@ -5,8 +5,8 @@ import pygame
 import sys
 import random
 import math
-from graph import Node, Graph, generate_graph
-from boid_statistics import BoidStatistics
+from graphtest import Node, Graph, generate_graph
+from boid_statistic import BoidStatistics
 
 # ==============================================================================
 # SETTINGS FOR BOIDS
