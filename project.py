@@ -135,6 +135,13 @@ def line_point_intersection(lp0, lp1, p):
     buffer = 0.1  # tolerance for floating-point errors
     return (d0 + d1 >= length - buffer) and (d0 + d1 <= length + buffer)
 
+# sample a point at random in a given radius around a given coordinate
+def sample_point_in_circle(center: 'Vect2D', radius: float) -> "Vect2D":
+    angle = get_random_float(0, 2 * PI)
+    rad = get_random_float(0, radius)
+    x = center.x + math.sin(angle) * rad
+    y = center.y + math.cos(angle) * rad
+    return Vect2D(x, y)
 
 # ==============================================================================
 # BOID CLASSES
@@ -199,7 +206,7 @@ class Boid:
         self.target = target
 
     def is_on_node(self, node):
-        return node.coord.get_distance_to(self.pos) < NODE_THRESHOLD
+        return node.coord.get_distance_to(self.pos) < DESTINATION_THRESHOLD * PASSTHROUGH_MULITPLIER
 
     def get_steering_force(self, steer):
         # steering force = desired velocity - current velocity
@@ -384,12 +391,12 @@ class Boid:
         if targeting:
 # GAUTAM AND CHENGPEND VERSION ******************************************          
 #  JOSH VERSION *********************************************************
-            threshold = DESTINATION_THRESHOLD if self.target.coord == self.destination.coord else DESTINATION_THRESHOLD * PASSTHROUGH_MULITPLIER
-            if self.target.coord.get_distance_to(self.pos) < threshold:
-                if self.target.id == self.destination.id:
-                    self.destination_callback(self)
-                    return
-                self.target = self.target.get_next_node(self.destination.id)
+            # threshold = DESTINATION_THRESHOLD if self.target.coord == self.destination.coord else DESTINATION_THRESHOLD * PASSTHROUGH_MULITPLIER
+            # if self.target.coord.get_distance_to(self.pos) < threshold:
+            #     if self.target.id == self.destination.id:
+            #         self.destination_callback(self)
+            #         return
+            #     self.target = self.target.get_next_node(self.destination.id)
 # END JOSH VERSION ******************************************************      
             target_force = self.get_target_vect() * TARGET_WEIGHT
             self.acc += target_force
@@ -519,22 +526,22 @@ class Flock:
     def populate(self):
         for i in range(self.num_boids):
 # GAUTAM AND CHENGPENG VERSION ****************************************
-#             selected = i in self.selected
-#             destination = random.choice(self.graph.nodes)
-#             boid = Boid(0.25, int(i), destination, self.graph, self.destination_callback, self.collision_callback, selected)
+            selected = i in self.selected
+            destination = random.choice(self.graph.nodes)
+            boid = Boid(0.25, int(i), destination, self.graph, self.destination_callback, self.collision_callback, selected)
 # JOSH VERSION *********************************************************
-            start = random.choice(self.graph.nodes)
-            possible_dests = self.graph.nodes.copy()
-            possible_dests.remove(start)
-            destination = random.choice(possible_dests)
+            # start = random.choice(self.graph.nodes)
+            # possible_dests = self.graph.nodes.copy()
+            # possible_dests.remove(start)
+            # destination = random.choice(possible_dests)
             
-            pos = sample_point_in_circle(start.coord, SPAWN_RADIUS)
+            # pos = sample_point_in_circle(start.coord, SPAWN_RADIUS)
 
-            boid = Boid(boid_id = int(i), 
-                        destination = destination, 
-                        destination_callback = self.destination_callback, 
-                        collision_callback = self.collision_callback,
-                        pos = pos)
+            # boid = Boid(boid_id = int(i), 
+            #             destination = destination, 
+            #             destination_callback = self.destination_callback, 
+            #             collision_callback = self.collision_callback,
+            #             pos = pos)
 # END *******************************************************************
             nearest_node = self.graph.get_nearest_node(boid.pos)
             boid.set_target(nearest_node)
