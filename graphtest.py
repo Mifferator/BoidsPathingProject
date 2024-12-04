@@ -2,8 +2,8 @@
 
 from typing import Dict, Optional, List
 from heapq import heappush, heappop
-from pygame import Vector2
 import math
+from vect2d import Vect2D
 
 def congestion_factor(boid_count):
     return math.exp(boid_count) - 1
@@ -62,7 +62,7 @@ class Graph:
             if node.id == id:
                 return node
 
-    def get_nearest_node(self, coord: Vector2) -> Optional[Node]:
+    def get_nearest_node(self, coord: Vect2D) -> Optional[Node]:
         nearest_node = None
         nearest_distance = float('inf')
         for node in self.nodes:
@@ -132,13 +132,13 @@ class Graph:
 def generate_graph():
     graph = Graph()
 
-    node1 = Node(Vector2(10, 10), 1)
-    node2 = Node(Vector2(20, 20), 2)
-    node3 = Node(Vector2(20, 40), 3)
-    node4 = Node(Vector2(40, 40), 4)
-    node5 = Node(Vector2(40, 10), 5)
-    node6 = Node(Vector2(60, 20), 6)
-    node7 = Node(Vector2(60, 45), 7)
+    node1 = Node(Vect2D(10, 10), 1)
+    node2 = Node(Vect2D(20, 20), 2)
+    node3 = Node(Vect2D(20, 40), 3)
+    node4 = Node(Vect2D(40, 40), 4)
+    node5 = Node(Vect2D(40, 10), 5)
+    node6 = Node(Vect2D(60, 20), 6)
+    node7 = Node(Vect2D(60, 45), 7)
 
     node1.connect(node2)
     node1.connect(node3)

@@ -1,10 +1,9 @@
 from __future__ import annotations
-from pygame import Vector2
 from typing import Dict, Optional, List
 from heapq import heappush, heappop
-
+from vect2d import Vect2D
 class Node:
-    def __init__(self, coord: Vector2, id: int):
+    def __init__(self, coord: Vect2D, id: int):
         self.id = id
         self.coord = coord
         self.neighbors: List[Node] = []
@@ -15,7 +14,7 @@ class Node:
             self.neighbors.append(neighbor)
             neighbor.connect(self)
 
-    def get_coord(self) -> Vector2:
+    def get_coord(self) -> Vect2D:
         return self.coord
     
     def get_next_node(self, destination_id: int) -> Optional[Node]:
@@ -37,11 +36,11 @@ class Graph:
             if node.id == id:
                 return node
 
-    def get_nearest_node(self, coord: Vector2) -> Optional[Node]:
+    def get_nearest_node(self, coord: Vect2D) -> Optional[Node]:
         nearest_node = None
         nearest_distance = float('inf')
         for node in self.nodes:
-            distance = node.coord.distance_to(coord)
+            distance = node.coord.get_distance_to(coord)
             if distance < nearest_distance:
                 nearest_node = node
                 nearest_distance = distance
@@ -102,18 +101,18 @@ class Graph:
         return current
 
     def _distance_between(self, node1: Node, node2: Node) -> float:
-        return node1.coord.distance_to(node2.coord)
+        return node1.coord.get_distance_to(node2.coord)
 
 def generate_graph():
     graph = Graph()
 
-    node1 = Node(Vector2(10, 10), 1)
-    node2 = Node(Vector2(20, 20), 2)
-    node3 = Node(Vector2(20, 40), 3)
-    node4 = Node(Vector2(40, 40), 4)
-    node5 = Node(Vector2(40, 10), 5)
-    node6 = Node(Vector2(60, 20), 6)
-    node7 = Node(Vector2(60, 45), 7)
+    node1 = Node(Vect2D(10, 10), 1)
+    node2 = Node(Vect2D(20, 20), 2)
+    node3 = Node(Vect2D(20, 40), 3)
+    node4 = Node(Vect2D(40, 40), 4)
+    node5 = Node(Vect2D(40, 10), 5)
+    node6 = Node(Vect2D(60, 20), 6)
+    node7 = Node(Vect2D(60, 45), 7)
 
     node1.connect(node2)
     node2.connect(node3)
@@ -143,11 +142,11 @@ def generate_graph():
 if __name__ == "__main__":
     graph = Graph()
 
-    node1 = Node(Vector2(0, 0), 1)
-    node2 = Node(Vector2(1, 1), 2)
-    node3 = Node(Vector2(1, 2), 3)
-    node4 = Node(Vector2(2, 2), 4)
-    node5 = Node(Vector2(2, 0), 5)
+    node1 = Node(Vect2D(0, 0), 1)
+    node2 = Node(Vect2D(1, 1), 2)
+    node3 = Node(Vect2D(1, 2), 3)
+    node4 = Node(Vect2D(2, 2), 4)
+    node5 = Node(Vect2D(2, 0), 5)
 
     node1.connect(node2)
     node2.connect(node3)

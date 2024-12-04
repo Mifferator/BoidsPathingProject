@@ -6,6 +6,7 @@ import random
 import math
 from graph import Node, Graph, generate_graph
 from boid_statistic import BoidStatistics
+from vect2d import Vect2D
 
 # ==============================================================================
 # SETTINGS FOR BOIDS     by David Gabriel
@@ -20,13 +21,14 @@ SEPARATION_WEIGHT = 0.8
 ALIGNMENT_WEIGHT = 0.0
 COHESION_WEIGHT = 0.0
 TARGET_WEIGHT = 0.9
+RANDOM_WEIGHT = 0.01
 STEER_FORCE = 0.2
 MIN_SPEED = 0.1 # m/s
 MAX_SPEED = 10.0 # m/s
 MIN_VIEW_DIST = 1 # m
 VIEW_DIST = 10 # m
 VIEW_ANGLE = 110 # degrees
-DESTINATION_THRESHOLD = 0.5 # m
+DESTINATION_THRESHOLD = 0.7 # m
 PASSTHROUGH_MULITPLIER = 4
 COLLISION_THRESHOLD = 0.2 # m
 SPAWN_RADIUS = 2.0 # m
@@ -141,112 +143,6 @@ def sample_point_in_circle(center: 'Vect2D', radius: float) -> "Vect2D":
 # ==============================================================================
 # BOID CLASSES     by David Gabriel
 # ==============================================================================
-# VECT2D CLASS
-class Vect2D:
-    def __init__(self, x=0, y=0):
-        self.x = x
-        self.y = y
-
-    def to_vector2(self) -> pygame.Vector2:
-        return pygame.Vector2(self.x, self.y)
-    
-    @staticmethod
-    def from_vector2(v: pygame.Vector2) -> 'Vect2D':
-        return Vect2D(v.x, v.y)
-
-    def set(self, x, y):
-        self.x = x
-        self.y = y
-
-    def set_from_angle(self, magnitude, angle):
-        self.x = magnitude*math.cos(angle)
-        self.y = magnitude*math.sin(angle)
-
-    def set_to_unit_vect(self):
-        mag = self.get_magnitude()
-        if mag != 0:
-            self.x /= mag
-            self.y /= mag
-    
-    def scale_to(self, scalar):
-        self.set_to_unit_vect()
-        self.x *= scalar
-        self.y *= scalar
-
-    def get_copy(self):
-        return Vect2D(self.x, self.y)
-    
-    def get_magnitude(self):
-        return math.sqrt(self.x ** 2 + self.y ** 2)
-    
-    def get_distance_to(self, v):
-        return math.sqrt((self.x - v.x) ** 2 + (self.y - v.y) ** 2)
-    
-    def get_angle_unit_vect_to(self, v):
-        d = Vect2D(v.x - self.x, v.y - self.y)
-        return d.get_unit_vect()
-    
-    def get_unit_vect(self):
-        mag = self.get_magnitude()
-        if mag != 0:
-            return Vect2D(self.x / mag, self.y / mag)
-        return Vect2D(0, 0)
-    
-    def get_draw_format(self):
-        return (int(self.x*SCALE), int(self.y*SCALE))
-    
-    def cross(self, v):
-        return self.x * v.y - self.y * v.x
-
-    # Operator Overloading
-    def __add__(self, v):
-        return Vect2D(self.x + v.x, self.y + v.y)
-
-    def __sub__(self, v):
-        return Vect2D(self.x - v.x, self.y - v.y)
-
-    def __mul__(self, other):
-        if isinstance(other, Vect2D):
-            return (self.x * other.x) + (self.y * other.y) # dot product
-        return Vect2D(self.x * other, self.y * other)
-    
-    def __truediv__(self, scalar):
-        if scalar == 0:
-            raise ValueError("Cannot divide by zero.")
-        return Vect2D(self.x / scalar, self.y / scalar)
-    
-    def __iadd__(self, v):
-        self.x += v.x
-        self.y += v.y
-        return self
-    
-    def __isub__(self, v):
-        self.x -= v.x
-        self.y -= v.y
-        return self
-
-    def __imult__(self, scalar):
-        self.x *= scalar
-        self.y *= scalar
-        return self
-
-    def __itruediv__(self, scalar):
-        self.x /= scalar
-        self.y /= scalar
-        return self
-
-    def __neg__(self):
-        return Vect2D(-self.x, -self.y)
-
-    def __eq__(self, v):
-        return self.x == v.x and self.y == v.y
-
-    def __ne__(self, v):
-        return not self.__eq__(v)
-    
-    def __repr__(self):
-        return f"Vect2D({self.x}, {self.y})"
-
 # OBSTACLE CLASSES
 class Obstacle:
     def __init__(self, vertices):
@@ -257,7 +153,7 @@ class Obstacle:
         return [(self.vertices[i], self.vertices[(i+1) % len(self.vertices)]) for i in range(len(self.vertices))]
 
     def draw(self):
-        points = [(v + camera_offset).get_draw_format() for v in self.vertices]
+        points = [(v + camera_offset).get_draw_format(SCALE) for v in self.vertices]
         pygame.draw.polygon(screen, self.color, points)
 
 class Circular_Obstacle:
@@ -269,7 +165,7 @@ class Circular_Obstacle:
 
     def draw(self):
         offset_pos = self.pos + camera_offset
-        pygame.draw.circle(screen, self.color, offset_pos.get_draw_format(), int(self.radius*SCALE))
+        pygame.draw.circle(screen, self.color, offset_pos.get_draw_format(SCALE), int(self.radius*SCALE))
 
 # BOID CLASS
 class Boid:
@@ -531,7 +427,7 @@ class Boid:
         return Vect2D(0, 0)
 
     def get_target_vect(self):
-        target = Vect2D.from_vector2(self.target.coord) - self.pos
+        target = self.target.coord - self.pos
         dist = target.get_magnitude()
         # Slow down if the boid is within the view distance (arrival behavior)
         if dist < self.view_distance:
@@ -564,15 +460,20 @@ class Boid:
 
             self.acc += separation_force + alignment_force + cohesion_force
 
+        # Targeting
         if(targeting):
             threshold = DESTINATION_THRESHOLD if self.target.coord == self.destination.coord else DESTINATION_THRESHOLD * PASSTHROUGH_MULITPLIER
-            if Vect2D.from_vector2(self.target.coord).get_distance_to(self.pos) < threshold:
+            if self.target.coord.get_distance_to(self.pos) < threshold:
                 if self.target.id == self.destination.id:
                     self.destination_callback(self)
                     return
                 self.target = self.target.get_next_node(self.destination.id)
             target_force = self.get_target_vect() * TARGET_WEIGHT
             self.acc += target_force
+
+        # Random
+        random_force = Vect2D(random.uniform(0,1), random.uniform(0,1)) * self.max_speed * RANDOM_WEIGHT
+        self.acc += random_force
 
         # Update velocity and position
         self.vel += self.acc * dt
@@ -598,34 +499,34 @@ class Boid:
 
         if self.selected and debug:
             # neighborhood
-            pygame.draw.circle(screen, pygame.Color("#bbbbbb"), offset_pos.get_draw_format(), self.prop_view_distance*SCALE)
+            pygame.draw.circle(screen, pygame.Color("#bbbbbb"), offset_pos.get_draw_format(SCALE), self.prop_view_distance*SCALE)
 
             if len(self.neighbors) > 0:
                 if showNeighborVects:
                     for neighbor in self.neighbors:
-                        pygame.draw.line(screen, self.color, offset_pos.get_draw_format(), neighbor.pos.get_draw_format())
+                        pygame.draw.line(screen, self.color, offset_pos.get_draw_format(SCALE), neighbor.pos.get_draw_format(SCALE))
                 
                 # acc
                 v = self.acc + offset_pos
-                pygame.draw.line(screen, pygame.Color("#f2a93a"), offset_pos.get_draw_format(), v.get_draw_format())
+                pygame.draw.line(screen, pygame.Color("#f2a93a"), offset_pos.get_draw_format(SCALE), v.get_draw_format(SCALE))
 
                 # steering vectors
                 if showSeparationVect:
                     v = self.get_separation_vect() + offset_pos
-                    pygame.draw.line(screen, pygame.Color("#0077b6"), offset_pos.get_draw_format(), v.get_draw_format())
+                    pygame.draw.line(screen, pygame.Color("#0077b6"), offset_pos.get_draw_format(SCALE), v.get_draw_format(SCALE))
                 if showAlignmentVect:
                     v = self.get_alignment_vect() + offset_pos
-                    pygame.draw.line(screen, pygame.Color("#00b4d8"), offset_pos.get_draw_format(), v.get_draw_format())
+                    pygame.draw.line(screen, pygame.Color("#00b4d8"), offset_pos.get_draw_format(SCALE), v.get_draw_format(SCALE))
                 if showCohesionVect:
                     v = self.get_cohesion_vect() + offset_pos
-                    pygame.draw.line(screen, pygame.Color("#90e0ef"), offset_pos.get_draw_format(), v.get_draw_format())
+                    pygame.draw.line(screen, pygame.Color("#90e0ef"), offset_pos.get_draw_format(SCALE), v.get_draw_format(SCALE))
 
         # headings
         if showHeadings:
             v = self.vel/2 + offset_pos
-            pygame.draw.line(screen, self.color, offset_pos.get_draw_format(), v.get_draw_format())
+            pygame.draw.line(screen, self.color, offset_pos.get_draw_format(SCALE), v.get_draw_format(SCALE))
         # boid
-        pygame.draw.circle(screen, self.color, offset_pos.get_draw_format(), int(self.radius*SCALE))
+        pygame.draw.circle(screen, self.color, offset_pos.get_draw_format(SCALE), int(self.radius*SCALE))
 
 # FLOCK CLASS
 class Flock:
@@ -667,7 +568,7 @@ class Flock:
             possible_dests.remove(start)
             destination = random.choice(possible_dests)
             
-            pos = sample_point_in_circle(Vect2D.from_vector2(start.coord), SPAWN_RADIUS)
+            pos = sample_point_in_circle(start.coord, SPAWN_RADIUS)
 
             boid = Boid(boid_id = int(i), 
                         destination = destination, 
@@ -675,7 +576,7 @@ class Flock:
                         collision_callback = self.collision_callback,
                         pos = pos)
 
-            nearest_node = self.graph.get_nearest_node(boid.pos.to_vector2())
+            nearest_node = self.graph.get_nearest_node(boid.pos)
             boid.set_target(nearest_node)
             self.boids.append(boid)
 
@@ -773,9 +674,9 @@ while running:
 
     if showGraph:
         for node in graph.nodes:
-            pygame.draw.circle(screen, RED, Vect2D.from_vector2(node.coord).get_draw_format(), 3)
+            pygame.draw.circle(screen, RED, node.coord.get_draw_format(SCALE), 3)
             for neighbor in node.neighbors:
-                pygame.draw.line(screen, RED, Vect2D.from_vector2(node.coord).get_draw_format(), Vect2D.from_vector2(neighbor.coord).get_draw_format())
+                pygame.draw.line(screen, RED, node.coord.get_draw_format(SCALE), neighbor.coord.get_draw_format(SCALE))
     # FPS text
     if debug:
         fps = clock.get_fps()
