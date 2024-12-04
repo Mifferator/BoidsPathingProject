@@ -308,6 +308,9 @@ class Boid:
     def set_target(self, target):
         self.target = target
 
+    def is_on_node(self, node):
+        return node.coord.get_distance_to(self.pos) < DESTINATION_THRESHOLD * PASSTHROUGH_MULITPLIER
+
     def get_steering_force(self, steer):
         # steering force = desired velocity - current velocity
         steer -= self.vel
@@ -563,14 +566,19 @@ class Boid:
             cohesion_force = self.get_cohesion_vect() * COHESION_WEIGHT
 
             self.acc += separation_force + alignment_force + cohesion_force
+            
+        # Targeting
+        if targeting:
+# GAUTAM AND CHENGPEND VERSION ******************************************          
+#  JOSH VERSION *********************************************************
+            # threshold = DESTINATION_THRESHOLD if self.target.coord == self.destination.coord else DESTINATION_THRESHOLD * PASSTHROUGH_MULITPLIER
+            # if self.target.coord.get_distance_to(self.pos) < threshold:
+            #     if self.target.id == self.destination.id:
+            #         self.destination_callback(self)
+            #         return
+            #     self.target = self.target.get_next_node(self.destination.id)
+# END JOSH VERSION ******************************************************      
 
-        if(targeting):
-            threshold = DESTINATION_THRESHOLD if self.target.coord == self.destination.coord else DESTINATION_THRESHOLD * PASSTHROUGH_MULITPLIER
-            if Vect2D.from_vector2(self.target.coord).get_distance_to(self.pos) < threshold:
-                if self.target.id == self.destination.id:
-                    self.destination_callback(self)
-                    return
-                self.target = self.target.get_next_node(self.destination.id)
             target_force = self.get_target_vect() * TARGET_WEIGHT
             self.acc += target_force
 
@@ -661,21 +669,27 @@ class Flock:
 
     def populate(self):
         for i in range(self.num_boids):
-            #selected = i in self.selected
-            start = random.choice(self.graph.nodes)
-            possible_dests = self.graph.nodes.copy()
-            possible_dests.remove(start)
-            destination = random.choice(possible_dests)
+
+# GAUTAM AND CHENGPENG VERSION ****************************************
+            selected = i in self.selected
+            destination = random.choice(self.graph.nodes)
+            boid = Boid(0.25, int(i), destination, self.graph, self.destination_callback, self.collision_callback, selected)
+# JOSH VERSION *********************************************************
+            # start = random.choice(self.graph.nodes)
+            # possible_dests = self.graph.nodes.copy()
+            # possible_dests.remove(start)
+            # destination = random.choice(possible_dests)
             
-            pos = sample_point_in_circle(Vect2D.from_vector2(start.coord), SPAWN_RADIUS)
+            # pos = sample_point_in_circle(start.coord, SPAWN_RADIUS)
 
-            boid = Boid(boid_id = int(i), 
-                        destination = destination, 
-                        destination_callback = self.destination_callback, 
-                        collision_callback = self.collision_callback,
-                        pos = pos)
+            # boid = Boid(boid_id = int(i), 
+            #             destination = destination, 
+            #             destination_callback = self.destination_callback, 
+            #             collision_callback = self.collision_callback,
+            #             pos = pos)
+# END *******************************************************************
+            nearest_node = self.graph.get_nearest_node(boid.pos)
 
-            nearest_node = self.graph.get_nearest_node(boid.pos.to_vector2())
             boid.set_target(nearest_node)
             self.boids.append(boid)
 
