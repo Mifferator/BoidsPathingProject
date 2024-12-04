@@ -1,5 +1,4 @@
-# graph.py
-
+from __future__ import annotations
 from typing import Dict, Optional, List
 from heapq import heappush, heappop
 import math
@@ -9,17 +8,24 @@ def congestion_factor(boid_count):
     return math.exp(boid_count) - 1
 
 class Node:
-    def __init__(self, coord, id):
+    def __init__(self, coord: Vect2D, id: int):
         self.id = id
         self.coord = coord
         self.neighbors = {}  # Store neighbors and their traffic weights
-
+  
+    def get_coord(self) -> Vect2D: #OLD
+        return self.coord
+    
+    def get_next_node(self, destination_id: int) -> Optional[Node]: #OLD
+        return self.routes.get(destination_id)
+      
     def connect(self, neighbor, base_cost=1.0):
         """Connect this node to a neighbor with a base cost."""
         if neighbor not in self.neighbors:
+#             self.neighbors.append(neighbor) # OLD CODE
             self.neighbors[neighbor] = base_cost  # Initialize with base cost
             neighbor.connect(self, base_cost)
-
+    
 #### edit by chengpeng
     def update_traffic(self, neighbor, boid_count):
         """Update traffic weight for a neighbor based on boid count."""

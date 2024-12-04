@@ -4,7 +4,7 @@ import pygame
 import sys
 import random
 import math
-from graphtest import Node, Graph, generate_graph
+from graph import Node, Graph, generate_graph
 from boid_statistics import BoidStatistics
 from vect2d import Vect2D
 
@@ -20,14 +20,18 @@ SEPARATION_WEIGHT = 0.8
 ALIGNMENT_WEIGHT = 0.0
 COHESION_WEIGHT = 0.0
 TARGET_WEIGHT = 0.9
+RANDOM_WEIGHT = 0.01
 STEER_FORCE = 0.2
+
 MIN_SPEED = 0.1  # m/s
 MAX_SPEED = 10.0  # m/s
 MIN_VIEW_DIST = 1  # m
 VIEW_DIST = 10  # m
 VIEW_ANGLE = 110  # degrees
-NODE_THRESHOLD = 1.0  # m
-COLLISION_THRESHOLD = 0.2  # m
+DESTINATION_THRESHOLD = 0.7 # m
+PASSTHROUGH_MULITPLIER = 4
+COLLISION_THRESHOLD = 0.2 # m
+SPAWN_RADIUS = 2.0 # m
 
 SCALE = 10  # pixels / m
 WIDTH = 100  # m
@@ -158,7 +162,6 @@ class Circular_Obstacle:
     def draw(self):
         offset_pos = self.pos + camera_offset
         pygame.draw.circle(screen, self.color, offset_pos.get_draw_format(SCALE), int(self.radius * SCALE))
-
 
 # BOID CLASS
 class Boid:
@@ -377,10 +380,23 @@ class Boid:
             cohesion_force = self.get_cohesion_vect() * COHESION_WEIGHT
 
             self.acc += separation_force + alignment_force + cohesion_force
-
+        # Targeting
         if targeting:
+# GAUTAM AND CHENGPEND VERSION ******************************************          
+#  JOSH VERSION *********************************************************
+            threshold = DESTINATION_THRESHOLD if self.target.coord == self.destination.coord else DESTINATION_THRESHOLD * PASSTHROUGH_MULITPLIER
+            if self.target.coord.get_distance_to(self.pos) < threshold:
+                if self.target.id == self.destination.id:
+                    self.destination_callback(self)
+                    return
+                self.target = self.target.get_next_node(self.destination.id)
+# END JOSH VERSION ******************************************************      
             target_force = self.get_target_vect() * TARGET_WEIGHT
             self.acc += target_force
+
+        # Random
+        random_force = Vect2D(random.uniform(0,1), random.uniform(0,1)) * self.max_speed * RANDOM_WEIGHT
+        self.acc += random_force
 
         # Update velocity and position
         self.vel += self.acc * dt
@@ -451,7 +467,6 @@ class Boid:
                     for neighbor in self.neighbors:
                         pygame.draw.line(screen, self.color, offset_pos.get_draw_format(SCALE),
                                          neighbor.pos.get_draw_format(SCALE))
-
                 # acc
                 v = self.acc + offset_pos
                 pygame.draw.line(screen, pygame.Color("#f2a93a"), offset_pos.get_draw_format(SCALE), v.get_draw_format(SCALE))
@@ -473,7 +488,6 @@ class Boid:
             pygame.draw.line(screen, self.color, offset_pos.get_draw_format(SCALE), v.get_draw_format(SCALE))
         # boid
         pygame.draw.circle(screen, self.color, offset_pos.get_draw_format(SCALE), int(self.radius * SCALE))
-
 
 # FLOCK CLASS
 class Flock:
@@ -504,10 +518,24 @@ class Flock:
 
     def populate(self):
         for i in range(self.num_boids):
-            selected = i in self.selected
+# GAUTAM AND CHENGPENG VERSION ****************************************
+#             selected = i in self.selected
+#             destination = random.choice(self.graph.nodes)
+#             boid = Boid(0.25, int(i), destination, self.graph, self.destination_callback, self.collision_callback, selected)
+# JOSH VERSION *********************************************************
+            start = random.choice(self.graph.nodes)
+            possible_dests = self.graph.nodes.copy()
+            possible_dests.remove(start)
+            destination = random.choice(possible_dests)
+            
+            pos = sample_point_in_circle(start.coord, SPAWN_RADIUS)
 
-            destination = random.choice(self.graph.nodes)
-            boid = Boid(0.25, int(i), destination, self.graph, self.destination_callback, self.collision_callback, selected)
+            boid = Boid(boid_id = int(i), 
+                        destination = destination, 
+                        destination_callback = self.destination_callback, 
+                        collision_callback = self.collision_callback,
+                        pos = pos)
+# END *******************************************************************
             nearest_node = self.graph.get_nearest_node(boid.pos)
             boid.set_target(nearest_node)
 #### edit by chengpeng
