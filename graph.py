@@ -2,25 +2,39 @@ from __future__ import annotations
 from typing import Dict, Optional, List
 from heapq import heappush, heappop
 from vect2d import Vect2D
+
 class Node:
-    def __init__(self, coord: Vect2D, id: int):
+    def __init__(self, coord: Vector2, id: int):
         self.id = id
         self.coord = coord
-        self.neighbors: List[Node] = []
+        self.neighbors: Dict[Node, float] = {}  # Use a dictionary to store neighbors and traffic weights
         self.routes: Dict[int, Node] = {}
 
-    def connect(self, neighbor: Node):
+    def connect(self, neighbor: Node, base_cost: float = 1.0):
+        """Connect this node to a neighbor with a base cost."""
         if neighbor not in self.neighbors:
-            self.neighbors.append(neighbor)
-            neighbor.connect(self)
+            self.neighbors[neighbor] = base_cost  # Initialize with base cost
+            neighbor.connect(self, base_cost)
 
-    def get_coord(self) -> Vect2D:
+    def update_traffic(self, neighbor: Node, change: float):
+        """Update traffic weight for a neighbor."""
+        if neighbor in self.neighbors:
+            # Update traffic weight and ensure it doesn't drop below base cost
+            self.neighbors[neighbor] = max(1.0, self.neighbors[neighbor] + change)
+
+    def get_traffic(self, neighbor: Node) -> float:
+        """Get the traffic weight for a neighbor."""
+        return self.neighbors.get(neighbor, float('inf'))
+
+    def get_coord(self) -> Vector2:
         return self.coord
-    
+
     def get_next_node(self, destination_id: int) -> Optional[Node]:
+        """Get the next node toward a destination."""
         return self.routes.get(destination_id)
 
     def __lt__(self, other: Node):
+        """Comparison method for priority queue."""
         return self.id < other.id
 
 class Graph:
