@@ -22,7 +22,7 @@ ALIGNMENT_WEIGHT = 0.0
 COHESION_WEIGHT = 0.0
 TARGET_WEIGHT = 0.9
 RANDOM_WEIGHT = 0.01
-STEER_FORCE = 0.2
+STEER_FORCE = 0.45
 MIN_SPEED = 0.1 # m/s
 MAX_SPEED = 10.0 # m/s
 MIN_VIEW_DIST = 1 # m
@@ -32,7 +32,7 @@ DESTINATION_THRESHOLD = 0.7 # m
 PASSTHROUGH_MULITPLIER = 4
 COLLISION_THRESHOLD = 0.2 # m
 SPAWN_RADIUS = 2.0 # m
-
+NODE_THRESHOLD = 1  #0.7m
 SCALE = 10 # pixels / m
 WIDTH=100 # m
 HEIGHT=60 # m
@@ -190,6 +190,7 @@ class Boid:
         self.maxSteerForce = STEER_FORCE*MAX_SPEED
         self.destination = destination
         self.target = None
+        self.previous_target = None
         self.view_distance = VIEW_DIST
         self.prop_view_distance = max(MIN_VIEW_DIST, VIEW_DIST * (self.speed / MAX_SPEED))
         self.view_angle = math.radians(VIEW_ANGLE)
@@ -461,21 +462,32 @@ class Boid:
             self.acc += separation_force + alignment_force + cohesion_force
 
         # Targeting
-        if(targeting):
-            threshold = DESTINATION_THRESHOLD if self.target.coord == self.destination.coord else DESTINATION_THRESHOLD * PASSTHROUGH_MULITPLIER
-            if self.target.coord.get_distance_to(self.pos) < threshold:
+        if targeting:
+            # Checking if the robot is close to its target node
+            if self.target.coord.get_distance_to(self.pos) < NODE_THRESHOLD:
+
+                # Decreasing traffic on the path just traveled
+                if self.previous_target:
+                    self.previous_target.update_traffic(self.target, -1)
+
+                # If the robot has reached its destination
                 if self.target.id == self.destination.id:
                     self.destination_callback(self)
                     return
+
+                # Updating the target to the next node
+                self.previous_target = self.target
                 self.target = self.target.get_next_node(self.destination.id)
+
+                # Increasing traffic on the new path
+                if self.target:
+                    self.previous_target.update_traffic(self.target, 1)
+
+            # Apply targeting force
             target_force = self.get_target_vect() * TARGET_WEIGHT
             self.acc += target_force
 
-        # Random
-        random_force = Vect2D(random.uniform(0,1), random.uniform(0,1)) * self.max_speed * RANDOM_WEIGHT
-        self.acc += random_force
-
-        # Update velocity and position
+            # Update velocity and position
         self.vel += self.acc * dt
         self.speed = self.vel.get_magnitude()
         if self.speed != 0:
