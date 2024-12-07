@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Dict, Optional, List
 from heapq import heappush, heappop
-from vect2d import Vect2D
+from vect2d import Vect2D, get_segment_intersection
 import random
 
 class Node:
@@ -52,9 +52,23 @@ class Graph:
             graph.add_node(node)
         for node in graph.nodes:
             num_edges = random.randint(min_edges_per_node, max_edges_per_node)
-            local_nodes = graph._get_local_nodes(node, num_edges)
-            for neighbor in local_nodes:
-                node.connect(neighbor)
+            local_nodes = graph._get_local_nodes(node)
+            for local_node in local_nodes:
+                print("here")
+                intersecting = False
+                if local_node not in node.neighbors:
+                    for edge in graph.edges:
+                        intersection = get_segment_intersection(node.coord, local_node.coord, edge[0].coord, edge[1].coord)
+                        if intersection is not None and intersection != node.coord and intersection != local_node.coord:
+                            intersecting = True
+                            break
+                    if not intersecting:
+                        node.connect(local_node)
+                        graph.edges.append((node, local_node))
+                if len(node.neighbors) >= num_edges:
+                    break
+
+        graph.edges = graph._get_edges()
         return graph
 
     def add_node(self, node: Node):
@@ -93,6 +107,14 @@ class Graph:
                 for neighbor in node.neighbors:
                     if node.id < neighbor.id:
                         f.write(f"{node.coord.x} {node.coord.y} {neighbor.coord.x} {neighbor.coord.y}\n")
+
+    def _get_edges(self):
+        edges = []
+        for node in self.nodes:
+            for neighbor, _ in node.neighbors.items():
+                if node.id < neighbor.id:
+                    edges.append((node, neighbor))
+        return edges
 
     def _compute_routes_from(self, source: Node):
         distances = {node: float('inf') for node in self.nodes} 
@@ -139,7 +161,9 @@ class Graph:
         return True
 
     # return n nearest nodes to node not including node
-    def _get_local_nodes(self, node, n) -> Optional[Node]:
+    def _get_local_nodes(self, node, n=None) -> Optional[Node]:
+        if n is None:
+            n = len(self.nodes) - 1
         rest = self.nodes.copy()
         rest.remove(node)
         nodes = sorted(rest, key=lambda n: node.coord.get_distance_to(n.coord))
