@@ -1,10 +1,11 @@
 from __future__ import annotations
 from typing import Dict, Optional, List
 from heapq import heappush, heappop
-from vect2d import Vect2D
+from vect2d import Vect2D, get_segment_intersection
+import random
 
 class Node:
-    def __init__(self, coord: Vector2, id: int):
+    def __init__(self, coord: Vect2D, id: int):
         self.id = id
         self.coord = coord
         self.neighbors: Dict[Node, float] = {}  # Use a dictionary to store neighbors and traffic weights
@@ -26,7 +27,7 @@ class Node:
         """Get the traffic weight for a neighbor."""
         return self.neighbors.get(neighbor, float('inf'))
 
-    def get_coord(self) -> Vector2:
+    def get_coord(self) -> Vect2D:
         return self.coord
 
     def get_next_node(self, destination_id: int) -> Optional[Node]:
@@ -41,6 +42,34 @@ class Graph:
     def __init__(self):
         self.nodes: List[Node] = []
         self.edges = []
+
+    @staticmethod
+    def generate_random_graph(num_nodes: int, width: int, height: int, padding: float, min_edges_per_node: int, max_edges_per_node: int) -> Graph:
+        graph = Graph()
+        for i in range(num_nodes):
+            coord = Vect2D(random.randint(width * padding, width*(1 - padding)), random.randint(height * padding, height*(1 - padding)))
+            node = Node(coord, i)
+            graph.add_node(node)
+        for node in graph.nodes:
+            num_edges = random.randint(min_edges_per_node, max_edges_per_node)
+            local_nodes = graph._get_local_nodes(node)
+            for local_node in local_nodes:
+                print("here")
+                intersecting = False
+                if local_node not in node.neighbors:
+                    for edge in graph.edges:
+                        intersection = get_segment_intersection(node.coord, local_node.coord, edge[0].coord, edge[1].coord)
+                        if intersection is not None and intersection != node.coord and intersection != local_node.coord:
+                            intersecting = True
+                            break
+                    if not intersecting:
+                        node.connect(local_node)
+                        graph.edges.append((node, local_node))
+                if len(node.neighbors) >= num_edges:
+                    break
+
+        graph.edges = graph._get_edges()
+        return graph
 
     def add_node(self, node: Node):
         self.nodes.append(node)
@@ -78,6 +107,14 @@ class Graph:
                 for neighbor in node.neighbors:
                     if node.id < neighbor.id:
                         f.write(f"{node.coord.x} {node.coord.y} {neighbor.coord.x} {neighbor.coord.y}\n")
+
+    def _get_edges(self):
+        edges = []
+        for node in self.nodes:
+            for neighbor, _ in node.neighbors.items():
+                if node.id < neighbor.id:
+                    edges.append((node, neighbor))
+        return edges
 
     def _compute_routes_from(self, source: Node):
         distances = {node: float('inf') for node in self.nodes} 
@@ -117,8 +154,23 @@ class Graph:
     def _distance_between(self, node1: Node, node2: Node) -> float:
         return node1.coord.get_distance_to(node2.coord)
 
+    def _is_connected(self):
+        for node in self.nodes:
+            if not node.neighbors:
+                return False
+        return True
+
+    # return n nearest nodes to node not including node
+    def _get_local_nodes(self, node, n=None) -> Optional[Node]:
+        if n is None:
+            n = len(self.nodes) - 1
+        rest = self.nodes.copy()
+        rest.remove(node)
+        nodes = sorted(rest, key=lambda n: node.coord.get_distance_to(n.coord))
+        return nodes[:n]
+
 def generate_graph():
-    graph = Graph()
+    """ graph = Graph()
 
     node1 = Node(Vect2D(10, 10), 1)
     node2 = Node(Vect2D(20, 20), 2)
@@ -151,6 +203,9 @@ def generate_graph():
         for destination_id, next_hop in node.routes.items():
             print(f"  Node {destination_id} via Node {next_hop.id}")
 
+    return graph """
+    graph = Graph.generate_random_graph(15, 100, 60, 0.1, 2, 4)
+    graph.run_dijkstra()
     return graph
 
 if __name__ == "__main__":

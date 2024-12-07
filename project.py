@@ -4,9 +4,11 @@ import pygame
 import sys
 import random
 import math
-from graph import Node, Graph, generate_graph
+from graph import Node, Graph
 from boid_statistics import BoidStatistics
-from vect2d import Vect2D
+from vect2d import *
+from abc import ABC, abstractmethod
+import math
 
 # ==============================================================================
 # SETTINGS FOR BOIDS     by David Gabriel
@@ -16,8 +18,8 @@ from vect2d import Vect2D
 PI = math.pi
 
 AVOID_PREDICTIVENESS = 1.0
-AVOID_WEIGHT = 0.9
-SEPARATION_WEIGHT = 0.8
+AVOID_WEIGHT = 1.0
+SEPARATION_WEIGHT = 1.0
 ALIGNMENT_WEIGHT = 0.0
 COHESION_WEIGHT = 0.0
 TARGET_WEIGHT = 0.9
@@ -59,96 +61,40 @@ showHeadings = True
 showObstacles = True
 showGraph = True
 
-
-# ==============================================================================
-# HELPER FUNCTIONS    by David Gabriel
-# ==============================================================================
-# Random functions
-def get_random_int(min_val, max_val):
-    return random.randint(min_val, max_val)
-
-def get_random_float(min_val, max_val):
-    return random.uniform(min_val, max_val)
-
-# Function to check if two line segments intersect
-def get_segment_intersection(p0, p1, p2, p3):
-    a1 = p1.y - p0.y
-    b1 = p0.x - p1.x
-    c1 = a1 * p0.x + b1 * p0.y
-    a2 = p3.y - p2.y
-    b2 = p2.x - p3.x
-    c2 = a2 * p2.x + b2 * p2.y
-    denominator = a1 * b2 - a2 * b1
-
-    if denominator == 0:
-        return None  # lines are parallel
-
-    x = (b2 * c1 - b1 * c2) / denominator
-    y = (a1 * c2 - a2 * c1) / denominator
-    ratio_x0 = (x - p0.x) / (p1.x - p0.x) if (p1.x - p0.x) != 0 else float('inf')
-    ratio_y0 = (y - p0.y) / (p1.y - p0.y) if (p1.y - p0.y) != 0 else float('inf')
-    ratio_x1 = (x - p2.x) / (p3.x - p2.x) if (p3.x - p2.x) != 0 else float('inf')
-    ratio_y1 = (y - p2.y) / (p3.y - p2.y) if (p3.y - p2.y) != 0 else float('inf')
-
-    if ((0 <= ratio_x0 <= 1 or 0 <= ratio_y0 <= 1) and
-        (0 <= ratio_x1 <= 1 or 0 <= ratio_y1 <= 1)):
-        return Vect2D(x, y)
-    else:
-        return None
-
-# Function to check if a line segment intersects a circle
-def line_circle_intersection(lp0, lp1, cp, r):
-    # Check if either endpoint is inside the circle
-    if point_circle_intersection(lp0, cp, r) or point_circle_intersection(lp1, cp, r):
-        return True
-
-    # Find the closest point on the line segment to the circle center
-    length = lp0.get_distance_to(lp1)
-    if length == 0:
-        raise ValueError("Error: lp0 should not equal lp1:\n",lp0," == ",lp1)
-    dot = ((cp.x - lp0.x) * (lp1.x - lp0.x) + (cp.y - lp0.y) * (lp1.y - lp0.y)) / (length ** 2)
-    closest = Vect2D(lp0.x + dot * (lp1.x - lp0.x), lp0.y + dot * (lp1.y - lp0.y))
-
-    # Check if the closest point lies on the segment
-    if not line_point_intersection(lp0, lp1, closest):
-        return False
-
-    # Check if the distance to the closest point is less than the circle's radius
-    dist = cp.get_distance_to(closest)
-    return dist <= r
-
-
-# Function to check if a point is inside a circle
-def point_circle_intersection(p, cp, r):
-    return p.get_distance_to(cp) <= r
-
-
-# Function to check if a point lies on a line segment
-def line_point_intersection(lp0, lp1, p):
-    length = lp0.get_distance_to(lp1)
-    d0 = p.get_distance_to(lp0)
-    d1 = p.get_distance_to(lp1)
-
-    buffer = 0.1  # tolerance for floating-point errors
-    return (d0 + d1 >= length - buffer) and (d0 + d1 <= length + buffer)
-
-# sample a point at random in a given radius around a given coordinate
-def sample_point_in_circle(center: 'Vect2D', radius: float) -> "Vect2D":
-    angle = get_random_float(0, 2 * PI)
-    rad = get_random_float(0, radius)
-    x = center.x + math.sin(angle) * rad
-    y = center.y + math.cos(angle) * rad
-    return Vect2D(x, y)
-
 # ==============================================================================
 # BOID CLASSES     by David Gabriel
 # ==============================================================================
 # OBSTACLE CLASSES
-class Obstacle:
+class Obstacle(ABC):
+    @abstractmethod
+    def draw(self):
+        pass
+
+    @abstractmethod
+    def contains(self, point: Vect2D) -> bool:
+        pass
+
+class Polygon_Obstacle(Obstacle):
     def __init__(self, vertices):
-        print("A New OBSTACLE Has Been Created.")
+        print("A New Polygon Obstacle Has Been Created.")
         self.vertices = vertices
         self.color = OBSTACLE_COLOR
+
+    @staticmethod
+    def square(center, size):
+        half_size = size / 2
+        return Polygon_Obstacle([center + Vect2D(-half_size, -half_size),
+                                 center + Vect2D(-half_size, half_size),
+                                 center + Vect2D(half_size, half_size),
+                                 center + Vect2D(half_size, -half_size)])
+    
+    @staticmethod
+    def triangle(center, size):
+        half_size = size / 2
+        return Polygon_Obstacle([center + Vect2D(0, -half_size),
+                                 center + Vect2D(-half_size, half_size),
+                                 center + Vect2D(half_size, half_size)])
+    
     def edges(self):
         return [(self.vertices[i], self.vertices[(i+1) % len(self.vertices)]) for i in range(len(self.vertices))]
 
@@ -156,9 +102,22 @@ class Obstacle:
         points = [(v + camera_offset).get_draw_format(SCALE) for v in self.vertices]
         pygame.draw.polygon(screen, self.color, points)
 
-class Circular_Obstacle:
+    def contains(self, point: Vect2D) -> bool:
+        angle_sum = 0
+        for i in range(len(self.vertices)):
+            x1, y1 = self.vertices[i].x, self.vertices[i].y
+            x2, y2 = self.vertices[(i+1) % len(self.vertices)].x, self.vertices[(i+1) % len(self.vertices)].y
+
+            dx1, dy1 = x1 - point.x, y1 - point.y
+            dx2, dy2 = x2 - point.x, y2 - point.y
+
+            angle_sum += math.atan2(dy1, dx1) - math.atan2(dy2, dx2)
+
+        return abs(angle_sum) > PI
+
+class Circular_Obstacle(Obstacle):
     def __init__(self, radius, pos):
-        print("A New OBSTACLE Has Been Created.")
+        print("A New Circle Obstacle Has Been Created.")
         self.pos = pos
         self.radius = radius
         self.color = OBSTACLE_COLOR
@@ -166,6 +125,35 @@ class Circular_Obstacle:
     def draw(self):
         offset_pos = self.pos + camera_offset
         pygame.draw.circle(screen, self.color, offset_pos.get_draw_format(SCALE), int(self.radius*SCALE))
+
+    def contains(self, point: Vect2D) -> bool:
+        return point.get_distance_to(self.pos) <= self.radius
+
+def place_obstacles(width: int, height: int, padding: float, num_obstacles: int, size_range: tuple, graph: Graph) -> list:
+    types = [Circular_Obstacle, Polygon_Obstacle]
+    shapes = [Polygon_Obstacle.square, Polygon_Obstacle.triangle]
+    obstacles = []
+    while len(obstacles) < num_obstacles:
+        colliding = False
+        center = Vect2D(random.randint(width * padding, width*(1 - padding)), random.randint(height * padding, height*(1 - padding)))
+        obstacle_type = random.choice(types)
+        if obstacle_type == Circular_Obstacle:
+            radius = random.uniform(*size_range)
+            pos = center
+            obstacle = Circular_Obstacle(radius, pos)
+        elif obstacle_type == Polygon_Obstacle:
+            size = random.uniform(*size_range)
+            pos = center
+            shape = random.choice(shapes)
+            obstacle = shape(pos, size)
+        for node in graph.nodes:
+            if obstacle.contains(node.coord):
+                print(f"Obstacle {obstacle_type} contains node {node.coord}, skipping...")
+                colliding = True
+                break
+        if not colliding:
+            obstacles.append(obstacle)
+    return obstacles
 
 # BOID CLASS
 class Boid:
@@ -386,7 +374,7 @@ class Boid:
                         closest_obstacle = obstacle
 
             # --- Check for Polygonal Obstacles ---
-            elif isinstance(obstacle, Obstacle):
+            elif isinstance(obstacle, Polygon_Obstacle):
                 for edge in obstacle.edges():
                     p0, p1 = edge
                     intersection = get_segment_intersection(self.pos, end_pos, p0, p1)
@@ -652,12 +640,13 @@ pygame.display.set_caption("BOIDs")
 clock = pygame.time.Clock()
 camera_offset = Vect2D(0, 0)
 
-graph = generate_graph()
+graph = Graph.generate_random_graph(20, WIDTH, HEIGHT, 0.1, 2, 4)
+graph.run_dijkstra()
 
 flock = Flock(num_boids=100, graph=graph)
-obstacles = []
-obstacles.append(Circular_Obstacle(1, Vect2D(WIDTH / 2, HEIGHT / 2)))
-obstacles.append(Obstacle([Vect2D(32,39),  Vect2D(30,42), Vect2D(30,42), Vect2D(35,40),]))
+obstacles = place_obstacles(WIDTH, HEIGHT, 0.1, 30, (1, 5), graph)
+""" obstacles.append(Circular_Obstacle(1, Vect2D(WIDTH / 2, HEIGHT / 2)))
+obstacles.append(Polygon_Obstacle([Vect2D(32,39),  Vect2D(30,42), Vect2D(30,42), Vect2D(35,40),])) """
 
 # Colors
 WHITE = (255, 255, 255)
