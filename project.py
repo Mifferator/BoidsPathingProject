@@ -18,8 +18,8 @@ import math
 PI = math.pi
 
 AVOID_PREDICTIVENESS = 1.0
-AVOID_WEIGHT = 0.9
-SEPARATION_WEIGHT = 0.8
+AVOID_WEIGHT = 1.0
+SEPARATION_WEIGHT = 1.0
 ALIGNMENT_WEIGHT = 0.0
 COHESION_WEIGHT = 0.0
 TARGET_WEIGHT = 0.9
@@ -76,7 +76,7 @@ class Obstacle(ABC):
 
 class Polygon_Obstacle(Obstacle):
     def __init__(self, vertices):
-        print("A New OBSTACLE Has Been Created.")
+        print("A New Polygon Obstacle Has Been Created.")
         self.vertices = vertices
         self.color = OBSTACLE_COLOR
 
@@ -117,7 +117,7 @@ class Polygon_Obstacle(Obstacle):
 
 class Circular_Obstacle(Obstacle):
     def __init__(self, radius, pos):
-        print("A New OBSTACLE Has Been Created.")
+        print("A New Circle Obstacle Has Been Created.")
         self.pos = pos
         self.radius = radius
         self.color = OBSTACLE_COLOR
@@ -134,6 +134,7 @@ def place_obstacles(width: int, height: int, padding: float, num_obstacles: int,
     shapes = [Polygon_Obstacle.square, Polygon_Obstacle.triangle]
     obstacles = []
     while len(obstacles) < num_obstacles:
+        colliding = False
         center = Vect2D(random.randint(width * padding, width*(1 - padding)), random.randint(height * padding, height*(1 - padding)))
         obstacle_type = random.choice(types)
         if obstacle_type == Circular_Obstacle:
@@ -147,9 +148,11 @@ def place_obstacles(width: int, height: int, padding: float, num_obstacles: int,
             obstacle = shape(pos, size)
         for node in graph.nodes:
             if obstacle.contains(node.coord):
-                print("Obstacle contains node, skipping...")
-                continue
-        obstacles.append(obstacle)
+                print(f"Obstacle {obstacle_type} contains node {node.coord}, skipping...")
+                colliding = True
+                break
+        if not colliding:
+            obstacles.append(obstacle)
     return obstacles
 
 # BOID CLASS
@@ -637,11 +640,11 @@ pygame.display.set_caption("BOIDs")
 clock = pygame.time.Clock()
 camera_offset = Vect2D(0, 0)
 
-graph = Graph.generate_random_graph(10, WIDTH, HEIGHT, 0.1, 2, 4)
+graph = Graph.generate_random_graph(20, WIDTH, HEIGHT, 0.1, 2, 4)
 graph.run_dijkstra()
 
 flock = Flock(num_boids=100, graph=graph)
-obstacles = place_obstacles(WIDTH, HEIGHT, 0.1, 10, (1, 5), graph)
+obstacles = place_obstacles(WIDTH, HEIGHT, 0.1, 30, (1, 5), graph)
 """ obstacles.append(Circular_Obstacle(1, Vect2D(WIDTH / 2, HEIGHT / 2)))
 obstacles.append(Polygon_Obstacle([Vect2D(32,39),  Vect2D(30,42), Vect2D(30,42), Vect2D(35,40),])) """
 
