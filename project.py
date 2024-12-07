@@ -6,6 +6,7 @@ import random
 import math
 from graph import Node, Graph
 from boid_statistics import BoidStatistics
+from spawner import NodeSpawner, RandomSpawner, SpawningStyle
 from vect2d import *
 from abc import ABC, abstractmethod
 import math
@@ -33,11 +34,14 @@ VIEW_ANGLE = 110 # degrees
 DESTINATION_THRESHOLD = 0.7 # m
 PASSTHROUGH_MULITPLIER = 4
 COLLISION_THRESHOLD = 0.2 # m
-SPAWN_RADIUS = 2.0 # m
-NODE_THRESHOLD = 1  #0.7m
+SPAWN_RADIUS = 7.0 # m
+SPAWN_MIN_DISTANCE = COLLISION_THRESHOLD * 1.05
+NODE_THRESHOLD = 1.0  # m
 SCALE = 10 # pixels / m
 WIDTH=100 # m
 HEIGHT=60 # m
+
+SPAWN_STYLE = SpawningStyle.NODE
 
 BOID_COLOR = pygame.Color(0,0,255) #r,g,b
 OBSTACLE_COLOR = pygame.Color(92,1,1) #r,g,b
@@ -189,9 +193,11 @@ class Boid:
         self.collision_callback = collision_callback
         self.statistics = BoidStatistics(self)
 
-
     def set_target(self, target):
         self.target = target
+
+    def target_nearest_node(self, graph):
+        self.target = graph.get_nearest_node(self.pos)
 
     def get_steering_force(self, steer):
         # steering force = desired velocity - current velocity
@@ -530,7 +536,7 @@ class Boid:
 
 # FLOCK CLASS
 class Flock:
-    def __init__(self, num_boids: int, graph: Graph):
+    def __init__(self, num_boids: int, graph: Graph, obstacles: list):
         print("A New FLOCK Has Been Created.")
         self.selected = [0]
         self.boids = []
@@ -541,6 +547,12 @@ class Flock:
         self.graph = graph
         self.collisions = 0
         self.completed_routes = 0
+
+        
+        if SPAWN_STYLE == SpawningStyle.RANDOM:
+            self.spawner = RandomSpawner((0, WIDTH), (0, HEIGHT), SPAWN_MIN_DISTANCE, obstacles)
+        elif SPAWN_STYLE == SpawningStyle.NODE:
+            self.spawner = NodeSpawner([node.coord for node in graph.nodes], SPAWN_RADIUS, SPAWN_MIN_DISTANCE, obstacles)
 
         self.populate()
 
@@ -568,7 +580,7 @@ class Flock:
             possible_dests.remove(start)
             destination = random.choice(possible_dests)
             
-            pos = sample_point_in_circle(start.coord, SPAWN_RADIUS)
+            pos = self.spawner.spawn()
 
             boid = Boid(boid_id = int(i), 
                         destination = destination, 
@@ -643,10 +655,8 @@ camera_offset = Vect2D(0, 0)
 graph = Graph.generate_random_graph(20, WIDTH, HEIGHT, 0.1, 2, 4)
 graph.run_dijkstra()
 
-flock = Flock(num_boids=100, graph=graph)
-obstacles = place_obstacles(WIDTH, HEIGHT, 0.1, 30, (1, 5), graph)
-""" obstacles.append(Circular_Obstacle(1, Vect2D(WIDTH / 2, HEIGHT / 2)))
-obstacles.append(Polygon_Obstacle([Vect2D(32,39),  Vect2D(30,42), Vect2D(30,42), Vect2D(35,40),])) """
+obstacles = place_obstacles(WIDTH, HEIGHT, 0.1, 10, (1, 5), graph)
+flock = Flock(num_boids=100, graph=graph, obstacles=obstacles)
 
 # Colors
 WHITE = (255, 255, 255)
