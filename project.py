@@ -41,7 +41,7 @@ SCALE = 10 # pixels / m
 WIDTH=100 # m
 HEIGHT=60 # m
 
-SPAWN_STYLE = SpawningStyle.RANDOM
+SPAWN_STYLE = SpawningStyle.NODE
 
 BOID_COLOR = pygame.Color(0,0,255) #r,g,b
 OBSTACLE_COLOR = pygame.Color(92,1,1) #r,g,b
@@ -551,7 +551,7 @@ class Flock:
         
         if SPAWN_STYLE == SpawningStyle.RANDOM:
             self.spawner = RandomSpawner((0, WIDTH), (0, HEIGHT), SPAWN_MIN_DISTANCE, obstacles)
-        elif SPAWN_STYLE == SpawningStyle.NODES:
+        elif SPAWN_STYLE == SpawningStyle.NODE:
             self.spawner = NodeSpawner([node.coord for node in graph.nodes], SPAWN_RADIUS, SPAWN_MIN_DISTANCE, obstacles)
 
         self.populate()
@@ -655,10 +655,8 @@ camera_offset = Vect2D(0, 0)
 graph = Graph.generate_random_graph(20, WIDTH, HEIGHT, 0.1, 2, 4)
 graph.run_dijkstra()
 
-obstacles = place_obstacles(WIDTH, HEIGHT, 0.1, 3, (1, 5), graph)
+obstacles = place_obstacles(WIDTH, HEIGHT, 0.1, 10, (1, 5), graph)
 flock = Flock(num_boids=100, graph=graph, obstacles=obstacles)
-""" obstacles.append(Circular_Obstacle(1, Vect2D(WIDTH / 2, HEIGHT / 2)))
-obstacles.append(Polygon_Obstacle([Vect2D(32,39),  Vect2D(30,42), Vect2D(30,42), Vect2D(35,40),])) """
 
 # Colors
 WHITE = (255, 255, 255)
