@@ -107,17 +107,31 @@ class Polygon_Obstacle(Obstacle):
         pygame.draw.polygon(screen, self.color, points)
 
     def contains(self, point: Vect2D) -> bool:
-        angle_sum = 0
-        for i in range(len(self.vertices)):
-            x1, y1 = self.vertices[i].x, self.vertices[i].y
-            x2, y2 = self.vertices[(i+1) % len(self.vertices)].x, self.vertices[(i+1) % len(self.vertices)].y
+        n = len(self.vertices)
+        inside = False
 
-            dx1, dy1 = x1 - point.x, y1 - point.y
-            dx2, dy2 = x2 - point.x, y2 - point.y
+        # Loop through all edges of the polygon
+        for i in range(n):
+            v1 = self.vertices[i]
+            v2 = self.vertices[(i + 1) % n]  # Next point, wrapping around to the start
+        
+            # Check if the point is on the line of the edge
+            if min(v1.y, v2.y) < point.y <= max(v1.y, v2.y):  # Check if the point is between the y-values of the edge
+                # Calculate the x-coordinate of the intersection of the ray with the edge
+                x_intersection = (point.y - v1.y) * (v2.x - v1.x) / (v2.y - v1.y) + v1.x
+                
+                # If the intersection point is to the right of the point, toggle the 'inside' flag
+                if x_intersection > point.x:
+                    inside = not inside
+        return inside
 
-            angle_sum += math.atan2(dy1, dx1) - math.atan2(dy2, dx2)
-
-        return abs(angle_sum) > PI
+    def intersects(self, p1: Vect2D, p2: Vect2D) -> bool:
+        # Check if the line intersects any of the polygon's edges using get_segment_intersection
+        for edge_start, edge_end in self.edges():
+            intersection = get_segment_intersection(p1, p2, edge_start, edge_end)
+            if intersection:
+                return True
+        return False
 
 class Circular_Obstacle(Obstacle):
     def __init__(self, radius, pos):
@@ -132,6 +146,9 @@ class Circular_Obstacle(Obstacle):
 
     def contains(self, point: Vect2D) -> bool:
         return point.get_distance_to(self.pos) <= self.radius
+    
+    def intersects(self, p1: Vect2D, p2: Vect2D) -> bool:
+        return line_circle_intersection(p1, p2, self.pos, self.radius)
 
 def place_obstacles(width: int, height: int, padding: float, num_obstacles: int, size_range: tuple, graph: Graph) -> list:
     types = [Circular_Obstacle, Polygon_Obstacle]
@@ -702,3 +719,4 @@ while running:
 # Quit pygame
 pygame.quit()
 sys.exit()
+
