@@ -13,6 +13,11 @@ class Node:
 
     def connect(self, neighbor: Node, base_cost: float = 1.0):
         """Connect this node to a neighbor with a base cost."""
+        # Check no obstacle is in the way
+        # for obstacle in self.obstacles:
+        #     if obstacle.intersects(self.coord, neighbor.coord):
+        #         return False
+        # Connect
         if neighbor not in self.neighbors:
             self.neighbors[neighbor] = base_cost  # Initialize with base cost
             neighbor.connect(self, base_cost)
